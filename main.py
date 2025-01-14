@@ -1,15 +1,43 @@
 # DEMO WIP Build of game with main menu and some simple classes only
+import os
+import sys
+
 import pygame
 from random import randint, randrange, random
 
 
+pygame.init()
+pygame.mixer.init()  # test
+mtimer = pygame.time  # costill
+pygame.mixer.music.load(r"gamedata\aud\mus\kino_bolny.mp3")  # test (change it later like move to separate
+# def or class idk)
+pygame.mixer.music.play()  # test (look 124)
+pygame.mixer.music.set_volume(1.0)  # test (look 124)
+ui_click = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
+SCREENRES = pygame.display.Info()  # screen resolution var required for some imgs to be properly set on canvas
+screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
+
+
+def imgloader(localpathname, colorkey=None):
+    fullpathname = os.path.join('gamedata', localpathname)
+    if not os.path.isfile(fullpathname):
+        print(f'Path::{fullpathname} image not found')
+        return pygame.image.load(r'doomkisser_V2_s.png')
+    img = pygame.image.load(fullpathname)
+    if colorkey is not None and not -2:
+        img = img.convert()
+        if colorkey == -1:
+            colorkey = img.get_at((0, 0))
+        img.set_colorkey(colorkey)
+    else:
+        img = img.convert_alpha()
+    return img
+
+
 class RenderableImage:  # base image container made to be configurable
     # базовый контейнер изображения для рендера сделанный для удобной конфигурации
-    def __init__(self, filepath, x, y, tw=0, th=0, isalpha=False, do_render=True):
-        if isalpha:
-            self.img = pygame.image.load(filepath).convert_alpha()
-        else:
-            self.img = pygame.image.load(filepath).convert()
+    def __init__(self, filepath, x, y, tw=0, th=0, colorkey=None, do_render=True):
+        self.img = imgloader(filepath, colorkey)
         if not (tw <= 0 or th <= 0):
             self.img = pygame.transform.scale(self.img, (tw, th))
         self.scenepos = (x, y)  # local scene position for img
@@ -28,22 +56,22 @@ class RenderableImage:  # base image container made to be configurable
 class ParallaxImage(RenderableImage):  # container for image with all parallax (offset with the cursor) data about it
     # базовый контейнер рендер-изображения, дополненный данными для параллакса
     # справка::параллакс - эффект смещения, в данном контексте относительно курсора
-    def __init__(self, filepath, x, y, tw=0, th=0, pm=1.0, isalpha=False, do_render=True):
-        super().__init__(filepath, x, y, tw, th, isalpha, do_render)
+    def __init__(self, filepath, x, y, tw=0, th=0, pm=1.0, colorkey=None, do_render=True):
+        super().__init__(filepath, x, y, tw, th, colorkey, do_render)
         self.para_mul = pm  # parallax offset multiplier/множитель параллакс-смещения
 
 
 class SnowflakeSprite(pygame.sprite.Sprite):
-    sflake_0 = pygame.image.load(r"gamedata\img\mmenu\CLA_SDrop__0001s_0003_Snowdrop_0.png")
-    sflake_1 = pygame.image.load(r"gamedata\img\mmenu\CLA_SDrop__0001s_0002_Snowdrop_1.png")
-    sflake_2 = pygame.image.load(r"gamedata\img\mmenu\CLA_SDrop__0001s_0001_Snowdrop_2.png")
-    sflake_3 = pygame.image.load(r"gamedata\img\mmenu\CLA_Sdrop_3.png")
+    sflake_0 = imgloader(r"img\mmenu\CLA_SDrop__0001s_0003_Snowdrop_0.png", -2)
+    sflake_1 = imgloader(r"img\mmenu\CLA_SDrop__0001s_0002_Snowdrop_1.png", -2)
+    sflake_2 = imgloader(r"img\mmenu\CLA_SDrop__0001s_0001_Snowdrop_2.png", -2)
+    sflake_3 = imgloader(r"img\mmenu\CLA_Sdrop_3.png", -2)
     sflake_list = [sflake_0, sflake_1, sflake_2, sflake_3]
 
     def __init__(self, *sgroup):
         super().__init__(*sgroup)
         simg = SnowflakeSprite.sflake_list[randint(0, 4) - 1]
-        scale = (random() + 0.5) / 1.5
+        scale = (random() + 1) / 2
         simg = pygame.transform.scale(simg, (simg.get_width() * scale, simg.get_height() * scale))
         self.image = pygame.transform.rotate(simg, randrange(-181, 180))
         self.rect = self.image.get_rect()
@@ -174,17 +202,17 @@ class BaseScene:  # scene class base: just a holder for scene content
                     _.scenepos[0] - (self.para_l[0] * _.para_mul), _.scenepos[1] - (self.para_l[1] * _.para_mul)))
                 else:
                     screen.blit(_.img, (_.scenepos[0], _.scenepos[1]))
+        self.sgroup.draw(screen)
+        self.sgroup.update()
         for _ in self.btnhld:
             if _.do_render:
                 _.render(screen, (self.para_l[0], self.para_l[1]))
-        self.sgroup.draw(screen)
-        self.sgroup.update()
 
     def get_para(self, x, y):
         self.para_l = (x, y)
 
     def sprite_event(self, event):
-        self.sgroup.update(event)
+        self.sgroup.update()
 
 
 class SceneHolder:
@@ -210,6 +238,9 @@ class SceneHolder:
     def funccall(self, name, *args):
         getattr(self.scene, name)(*args)
 
+    def event_parser(self, event):
+        pass
+
     def switch_scene(self, scene_new):
         self.scene = scene_new
         # pygame.draw.rect(screen, '#000000', (0, 0, SCREENRES.current_w, SCREENRES.current_h))
@@ -232,20 +263,20 @@ def cla_mainmenu_draw(screen, xoffset=0, yoffset=0):  # REMOVE LATER
 
 
 def mmenu_imgs_init():
-    mmenuimg = ParallaxImage(r'gamedata\img\mmenu\CLA_MM_BG_0.png', 0, 0, SCREENRES.current_w + 40,
+    mmenuimg = ParallaxImage(r'img\mmenu\CLA_MM_BG_0.png', 0, 0, SCREENRES.current_w + 40,
                              int(SCREENRES.current_w / 2 * 1.25) + 50)
-    clachr = ParallaxImage(r'gamedata\img\mmenu\CLA_Chr__0003s_0004_HD_Obvod.png', SCREENRES.current_w / 2 - 512,
-                           SCREENRES.current_h - 974, 1024, 1024, 1.5, True)
-    clachr_g = ParallaxImage(r'gamedata\img\mmenu\CLA_Chr__0003s_0001_HD_GS_Zakras.png',
-                             SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, True, False)
-    clachr_bld = ParallaxImage(r'gamedata\img\mmenu\CLA_Chr__0003s_0002_BLD.png',
-                               SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, True)
-    clachr_col = ParallaxImage(r'gamedata\img\mmenu\CLA_Chr__0003s_0003_HD_ColOL.png',
-                               SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, True)
-    clachr_gno = ParallaxImage(r'gamedata\img\mmenu\CLA_Chr__0003s_0000_gno.png',
+    clachr = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0004_HD_Obvod.png', SCREENRES.current_w / 2 - 512,
+                           SCREENRES.current_h - 974, 1024, 1024, 1.5, -2)
+    clachr_g = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0001_HD_GS_Zakras.png',
+                             SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, -2, False)
+    clachr_bld = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0002_BLD.png',
+                               SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, -2)
+    clachr_col = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0003_HD_ColOL.png',
+                               SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, -2)
+    clachr_gno = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0000_gno.png',
                                SCREENRES.current_w / 2 - 512 - 256 - 128, SCREENRES.current_h - 512 - 256, 1024, 1024,
-                               4, True)
-    ttle = ParallaxImage(r'gamedata\img\mmenu\CLA_Txt_0.png', SCREENRES.current_w / 2 - 1024, 0, 2048, 512, 2.5, True)
+                               4, -2)
+    ttle = ParallaxImage(r'img\mmenu\CLA_Txt_0.png', SCREENRES.current_w / 2 - 1024, 0, 2048, 512, 2.5, -2)
     return mmenuimg, clachr, clachr_col, clachr_bld, ttle, clachr_gno, clachr_g
 
 
@@ -268,16 +299,6 @@ def doomkisser_enabler():  # FOR BUTTONS TEST
     sceneslot.switch_scene(nmenu)
 
 
-pygame.init()
-pygame.mixer.init()  # test
-mtimer = pygame.time  # costill
-pygame.mixer.music.load(r"gamedata\aud\mus\dymyat_molcha.mp3")  # test (change it later like move to separate
-# def or class idk)
-pygame.mixer.music.play()  # test (look 124)
-pygame.mixer.music.set_volume(1.0)  # test (look 124)
-ui_click = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
-SCREENRES = pygame.display.Info()  # screen resolution var required for some imgs to be properly set on canvas
-screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
 FADE_IMG = pygame.image.load(r"gamedata\img\ui\fade.png").convert_alpha()
 FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
 pygame.display.set_caption("ColdLine Arkhangelsk")
