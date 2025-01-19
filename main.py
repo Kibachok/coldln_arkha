@@ -1,27 +1,14 @@
 # DEMO WIP Build of game with main menu and some simple classes only
 import os
-import sys
 
 import pygame
 from random import randint, randrange, random
 
 
-pygame.init()
-pygame.mixer.init()  # test
-mtimer = pygame.time  # costill
-pygame.mixer.music.load(r"gamedata\aud\mus\kino_bolny.mp3")  # test (change it later like move to separate
-# def or class idk)
-pygame.mixer.music.play()  # test (look 124)
-pygame.mixer.music.set_volume(1.0)  # test (look 124)
-ui_click = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
-SCREENRES = pygame.display.Info()  # screen resolution var required for some imgs to be properly set on canvas
-screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
-
-
 def imgloader(localpathname, colorkey=None):
     fullpathname = os.path.join('gamedata', localpathname)
     if not os.path.isfile(fullpathname):
-        print(f'Path::{fullpathname} image not found')
+        print(f'Path -- {fullpathname} image not found')
         return pygame.image.load(r'doomkisser_V2_s.png')
     img = pygame.image.load(fullpathname)
     if colorkey is not None and not -2:
@@ -32,6 +19,30 @@ def imgloader(localpathname, colorkey=None):
     else:
         img = img.convert_alpha()
     return img
+
+
+# UPPERCASE = global used variable
+# global used/required commands
+pygame.init()
+pygame.mixer.init()
+FONT_0 = pygame.font.Font(None, 35)
+FONT_0.set_bold(True)
+mtimer = pygame.time  # costill
+pygame.mixer.music.load(r"gamedata\aud\mus\dymyat_molcha.mp3")  # MOVE IT TO SOME SCENE METHOD
+pygame.mixer.music.play()  # test (look 30)
+pygame.mixer.music.set_volume(1.0)  # test (look 30)
+UI_CLICK = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
+SCREENRES = pygame.display.Info()  # screen resolution required for some imgs to be properly set on canvas
+screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
+pygame.display.set_caption("ColdLine Arkhangelsk")
+pygame.display.set_icon(pygame.image.load(r"doomkisser_V2_s.png"))
+FADE_IMG = imgloader(r"img\ui\fade.png", -2)  # global used fade image
+FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
+
+
+# global used commands - end
+# -------------------------------------------------------
+# \/ \/ \/ GRAPHIC ELS CLASSES START (НАЧАЛО ЗОНЫ КЛАССОВ ГРАФИКИ)
 
 
 class RenderableImage:  # base image container made to be configurable
@@ -61,16 +72,17 @@ class ParallaxImage(RenderableImage):  # container for image with all parallax (
         self.para_mul = pm  # parallax offset multiplier/множитель параллакс-смещения
 
 
-class SnowflakeSprite(pygame.sprite.Sprite):
+class SnowflakeSprite(pygame.sprite.Sprite):  # main menu snowflake sprite / спрайт снежинки для главного меню
     sflake_0 = imgloader(r"img\mmenu\CLA_SDrop__0001s_0003_Snowdrop_0.png", -2)
     sflake_1 = imgloader(r"img\mmenu\CLA_SDrop__0001s_0002_Snowdrop_1.png", -2)
     sflake_2 = imgloader(r"img\mmenu\CLA_SDrop__0001s_0001_Snowdrop_2.png", -2)
     sflake_3 = imgloader(r"img\mmenu\CLA_Sdrop_3.png", -2)
-    sflake_list = [sflake_0, sflake_1, sflake_2, sflake_3]
+    sflake_list = [sflake_0, sflake_1, sflake_2, sflake_3]  # a list of pngs for one of them being randomly selected
+    # ^^^ список картинок снежинок, из которого одна будет выбрано случайно
 
     def __init__(self, *sgroup):
         super().__init__(*sgroup)
-        simg = SnowflakeSprite.sflake_list[randint(0, 4) - 1]
+        simg = SnowflakeSprite.sflake_list[randint(0, 4) - 1]  # selection itself / выборка снежинки
         scale = (random() + 1) / 2
         simg = pygame.transform.scale(simg, (simg.get_width() * scale, simg.get_height() * scale))
         self.image = pygame.transform.rotate(simg, randrange(-181, 180))
@@ -86,30 +98,24 @@ class SnowflakeSprite(pygame.sprite.Sprite):
         self.rect = self.rect.move((randrange(12) - 12, 5 + randrange(5)))
 
 
-class PushBtn:  # PUSHBuTtoN class: pushable/класс нажимаемой кнопки
-    def __init__(self, btntxt='', font='', w=200, h=50, x=0, y=0):
-        global font_0
+# ^^^ GRAPHIC ELS CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ ГРАФИКИ)
+# ----------------------------------------------------------
+# \/ \/ \/ UI CLASSES START (НАЧАЛО ЗОНЫ КЛАССОВ ИНТЕРФЕЙСА)
+
+
+class UIElem:  # UI Element base class/базовый класс элемента интерфейса
+    def __init__(self, x=0, y=0, w=0, h=0, txt='', font=None):
+        global FONT_0
         self.w = w
         self.h = h
         self.x = x
         self.y = y
-        self.func = False
-        self.status = 0
-        self.active = True
         self.font = font
-        self.btntxt = btntxt
+        self.txt = txt
         self.do_render = True
-        # self.pressed_delay = False
-
-    def set_func(self, func):
-        self.func = func
-
-    def set_active(self, status):
-        self.active = status
 
     def hide(self):
         self.do_render = False
-        self.active = False
 
     def show(self):
         self.do_render = True
@@ -118,93 +124,248 @@ class PushBtn:  # PUSHBuTtoN class: pushable/класс нажимаемой к�
         self.x = x
         self.y = y
 
-    def pressed(self):
+    def text_render(self, col_txt='#202020'):
+        try:
+            return self.font.render(self.txt, False, col_txt)
+        except TypeError:
+            return FONT_0.render(self.txt, False, col_txt)
+        except AttributeError:
+            return FONT_0.render(self.txt, False, col_txt)
+
+
+class UICanvas(UIElem):
+    def __init__(self, x=0, y=0, w=0, h=0, txt='', font=None):
+        super().__init__(x, y, w, h, txt, font)
+
+    def render(self, screen, para=(0, 0), col_para='#AAAACF', col_0='#DFDFE8', col_koyma='#D0D0D8'):
+        offset = SCREENRES.current_w // 1000 * 5
+        pygame.draw.rect(screen, col_para,
+                         (self.x + offset - (para[0] * 0.8), self.y + offset - (para[1] * 0.8), self.w, self.h), 0)
+        pygame.draw.rect(screen, col_0, (self.x, self.y, self.w, self.h), 0)
+        pygame.draw.rect(screen, col_koyma, (self.x, self.y, self.w, self.h), 5)
+
+
+class UIText(UIElem):
+    def __init__(self, x=0, y=0, w=0, h=0, txt='', font=None):
+        super().__init__(x, y, w, h, txt, font)
+
+    def render(self, screen, para, col_txt='#202020'):
+        text = self.text_render(col_txt)
+        screen.blit(text, (self.x + self.w / 2 - text.get_width() / 2, self.y + self.h / 2 - text.get_height() / 2))
+
+
+class UIInterElem(UIElem):  # interactive UI element (buttons, prompts ETC)
+    def __init__(self, x=0, y=0, w=0, h=0, txt='', font=None):
+        super().__init__(x, y, w, h, txt, font)
+        self.active = True
+        self.force_active = True  # do restore state after show() | восстанавливать ли состояние после show()
+        self.status = 0  # 0 = idle (ожидание), 1 = pointed (наведённый курс.), 2 = active (активный (наж/редакт-ется))
+
+    def hide(self):
+        super().hide()
+        self.active = False
+
+    def show(self):
+        super().show()
+        if self.force_active:
+            self.active = True
+
+    def set_active(self, status, force=False):
+        self.active = status
+        if force:
+            self.force_active = status
+
+    def triggered(self):
+        pass
+
+    def proc_evt(self, event, click=False):
+        pass
+
+
+class PushBtn(UIInterElem):
+    def __init__(self, x, y, w=200, h=50, txt='', font=None):
+        super().__init__(x, y, w, h, txt, font)
+        self.func = None
+
+    def set_func(self, func):
+        self.func = func
+
+    def triggered(self):
+        UI_CLICK.play()
         if self.func:
             self.func()
 
-    def render(self, screen, para):
-        try:
-            text = self.font.render(self.btntxt, False, '#202020')
-        except TypeError:
-            text = font_0.render(self.btntxt, False, '#202020')
-        except AttributeError:
-            text = font_0.render(self.btntxt, False, '#202020')
-        offset = SCREENRES.current_w // 1000 * 5
-        pygame.draw.rect(screen, '#AAAACF',
-                         (self.x + offset - (para[0] * 0.8), self.y + offset - (para[1] * 0.8), self.w, self.h), 0)
-        if self.status == 0:
-            pygame.draw.rect(screen, '#DFDFE8', (self.x, self.y, self.w, self.h), 0)
-            pygame.draw.rect(screen, '#D0D0D8', (self.x, self.y, self.w, self.h), 5)
-            screen.blit(text, (self.x + self.w / 2 - text.get_width() / 2, self.y + self.h / 2 - text.get_height() / 2))
-        elif self.status == 1:
-            pygame.draw.rect(screen, '#BBBBCC', (self.x, self.y, self.w, self.h), 0)
-            pygame.draw.rect(screen, '#D0D0D8', (self.x, self.y, self.w, self.h), 5)
-            screen.blit(text, (self.x + self.w / 2 - text.get_width() / 2, self.y + self.h / 2 - text.get_height() / 2))
-        else:
-            pygame.draw.rect(screen, '#BBBBCC', (self.x + (offset / 2), self.y + (offset / 2), self.w, self.h), 0)
-            pygame.draw.rect(screen, '#D0D0D8', (self.x + (offset / 2), self.y + (offset / 2), self.w, self.h), 5)
-            screen.blit(text, (self.x + (offset / 2), self.y + (offset / 2)))
-
-    def status_check(self, event, click=False):
+    def proc_evt(self, event, click=False):
         if self.active:
             if self.x <= event.pos[0] <= self.x + self.w and self.y <= event.pos[1] <= self.y + self.h and self.active:
                 self.status = 1 if not click else 2
                 if self.status == 2:
-                    self.pressed()
+                    self.triggered()
             else:
                 self.status = 0
+
+    def render(self, screen, para=(0, 0), col_txt='#202020', col_para='#AAAACF', col_0='#DFDFE8', col_koyma='#D0D0D8',
+               col_sel='#BBBBCC'):
+        text = super().text_render(col_txt)
+        offset = SCREENRES.current_w // 1000 * 5
+        pygame.draw.rect(screen, col_para,
+                         (self.x + offset - (para[0] * 0.8), self.y + offset - (para[1] * 0.8), self.w, self.h), 0)
+        if self.status == 0:
+            pygame.draw.rect(screen, col_0, (self.x, self.y, self.w, self.h), 0)
+            pygame.draw.rect(screen, col_koyma, (self.x, self.y, self.w, self.h), 5)
+            screen.blit(text, (self.x + self.w / 2 - text.get_width() / 2, self.y + self.h / 2 - text.get_height() / 2))
+        elif self.status == 1:
+            pygame.draw.rect(screen, col_sel, (self.x, self.y, self.w, self.h), 0)
+            pygame.draw.rect(screen, col_koyma, (self.x, self.y, self.w, self.h), 5)
+            screen.blit(text, (self.x + self.w / 2 - text.get_width() / 2, self.y + self.h / 2 - text.get_height() / 2))
+        else:
+            pygame.draw.rect(screen, col_sel, (self.x + (offset / 2), self.y + (offset / 2), self.w, self.h), 0)
+            pygame.draw.rect(screen, col_koyma, (self.x + (offset / 2), self.y + (offset / 2), self.w, self.h), 5)
+            screen.blit(text, (self.x + (offset / 2), self.y + (offset / 2)))
+
+
+class TextPrompt(UIInterElem):
+    def __init__(self, x=0, y=0, w=0, h=0, font=None):
+        super().__init__(x, y, w, h, font=font)
+
+    def catching(self, event, breakevt=False):
+        if event.type == pygame.KEYDOWN and not breakevt:
+            print(event)
+            if event.key == pygame.K_BACKSPACE:
+                self.txt = self.txt[:-1]
+            else:
+                self.txt += f'{event.unicode}'
+        elif breakevt:
+            self.status = 0
+
+    def proc_evt(self, event, click=False, scene_mode=0, scene=None):
+        if self.active:
+            if (self.x <= event.pos[0] <= self.x + self.w and self.y <= event.pos[1] <= self.y + self.h and self.active
+                    and self.status != 2):
+                if click:
+                    self.status = 2
+                    scene.scene_mode = 1
+                    scene.catcher = self
+                    print(scene)
+                else:
+                    self.status = 1
+            else:
+                self.status = 0
+
+    def render(self, screen, para=(0, 0), col_txt='#202020', col_para='#AAAACF', col_0='#EFEFEF', col_koyma='#D0D0D8',
+               col_sel='#BBBBCC'):
+        text = super().text_render(col_txt)
+        offset = SCREENRES.current_w // 1000 * 5
+        pygame.draw.rect(screen, col_para,
+                         (self.x + offset - (para[0] * 0.8), self.y + offset - (para[1] * 0.8), self.w, self.h), 0)
+        if self.status == 0:
+            pygame.draw.rect(screen, col_0, (self.x, self.y, self.w, self.h), 0)
+            pygame.draw.rect(screen, col_koyma, (self.x, self.y, self.w, self.h), 5)
+            screen.blit(text, (self.x + 10, self.y + self.h / 2 - text.get_height() / 2))
+        elif self.status == 1:
+            pygame.draw.rect(screen, col_sel, (self.x, self.y, self.w, self.h), 0)
+            pygame.draw.rect(screen, col_koyma, (self.x, self.y, self.w, self.h), 5)
+            screen.blit(text, (self.x + 10, self.y + self.h / 2 - text.get_height() / 2))
+        else:
+            pygame.draw.rect(screen, col_sel, (self.x, self.y, self.w, self.h), 0)
+            pygame.draw.rect(screen, col_koyma, (self.x, self.y, self.w, self.h), 5)
+            screen.blit(text, (self.x + 15, self.y + self.h / 2 - text.get_height() / 2))
+
+
+class UIGroup:
+    def __init__(self):
+        self.elems = []
+        self.do_render = True
+        self.active = True
+
+    def add_elem(self, *elem):
+        self.elems.extend(elem)
+
+    def hide(self):
+        self.do_render = False
+        self.active = False
+        for _ in self.elems:
+            _.hide()
+
+    def show(self):
+        self.do_render = True
+        self.active = True
+        for _ in self.elems:
+            _.show()
+
+    def set_active(self, status):
+        for _ in self.elems:
+            if issubclass(type(_), UIInterElem):
+                _.set_active(status, False)
+
+    def proc_evt(self, event, click=False, scene_mode=0, scene=None):
+        if self.active:
+            for _ in self.elems:
+                if issubclass(type(_), UIInterElem):
+                    if isinstance(_, TextPrompt):
+                        _.proc_evt(event, click, scene_mode, scene)
+                    else:
+                        _.proc_evt(event, click)
+
+    def render(self, screen, para=(0, 0)):
+        if self.do_render:
+            for _ in self.elems:
+                _.render(screen, para)
+
+
+#  ^^^ UI CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ ИНТЕРФЕЙСА)
+#  --------------------------------------------------------
+#  \/ \/ \/ SCENE CLASSES START (НАЧАЛО ЗОНЫ КЛАССОВ СЦЕНЫ)
 
 
 class BaseScene:  # scene class base: just a holder for scene content
     # базовый класс сцены - контейнера для содержимого на экране (хотя иногда и за его пределами) в данный м.вр.
     def __init__(self):
-        self.para_l = (0, 0)
-        self.imghld = []
-        self.btnhld = []
-        self.sgroup = pygame.sprite.Group()
-        self.entgroup = pygame.sprite.Group()
+        self.para_l = (0, 0)  # parallax local offset
+        self.imghld = []  # img - картинка
+        self.uihld = []  # btn - кнопка
+        self.sgroup = pygame.sprite.Group()  # s - спрайт
+        self.entgroup = pygame.sprite.Group()  # ent - сущность (будь то NPC (враг) или окошко-тумбочка-кровать)
+        self.scene_mode = 0
+        self.catcher = None
 
-    def append_img(self, img):
-        self.imghld.append(img)
+    def __str__(self):
+        return (f'{self.para_l}\n{self.imghld}\n{self.uihld}\n{self.sgroup}'
+                f'\n{self.entgroup}\nscene_mode={self.scene_mode}\ncatcher={self.catcher}')
 
-    def extend_img(self, imgs):
-        self.imghld.extend(imgs)
+    def add_img(self, *imgs):  # add as many imgs as you want (1-"8 rotated by 90 degrees lol")
+        self.imghld.extend(*imgs)
 
-    def append_btn(self, btn):
-        self.btnhld.append(btn)
+    def add_uie(self, *uies):  # add as many uielems as you want
+        self.uihld.extend(uies)
 
-    def extend_btn(self, btns):
-        self.btnhld.extend(btns)
-
-    def append_s(self, spr):
-        spr(self.sgroup)
-
-    def extend_s(self, sprs):
+    def add_s(self, *sprs):  # technically "s = ent" but i will probably make different group class for ent later
         for _ in sprs:
             _(self.sgroup)
 
-    def append_ent(self, ent):
-        ent(self.sgroup)
-
-    def extend_ents(self, ents):
+    def add_ent(self, *ents):
         for _ in ents:
-            _(self.sgroup)
+            _(self.entgroup)
 
-    def btn_validator(self, event, click=False):
-        for _ in self.btnhld:
-            _.status_check(event, click)
+    def ui_validator(self, event, click=False):
+        for _ in self.uihld:
+            if issubclass(type(_), UIInterElem) or isinstance(_, UIGroup):
+                if isinstance(_, TextPrompt) or isinstance(_, UIGroup):
+                    _.proc_evt(event, click, self.scene_mode, self)
+                else:
+                    _.proc_evt(event, click)
 
     def render(self, screen):
         for _ in self.imghld:
             if _.do_render:
                 if type(_) == ParallaxImage:
-                    screen.blit(_.img, (
-                    _.scenepos[0] - (self.para_l[0] * _.para_mul), _.scenepos[1] - (self.para_l[1] * _.para_mul)))
+                    screen.blit(_.img, (_.scenepos[0] - (self.para_l[0] * _.para_mul), _.scenepos[1]
+                                        - (self.para_l[1] * _.para_mul)))
                 else:
                     screen.blit(_.img, (_.scenepos[0], _.scenepos[1]))
         self.sgroup.draw(screen)
         self.sgroup.update()
-        for _ in self.btnhld:
+        for _ in self.uihld:
             if _.do_render:
                 _.render(screen, (self.para_l[0], self.para_l[1]))
 
@@ -213,6 +374,30 @@ class BaseScene:  # scene class base: just a holder for scene content
 
     def sprite_event(self, event):
         self.sgroup.update()
+
+    def proc_evt(self, event):
+        if self.scene_mode == 0:
+            if event.type == pygame.MOUSEMOTION or event.type == pygame.MOUSEBUTTONUP:  # costill a little bit
+                self.ui_validator(event)
+                self.get_para(event.pos[0] / 50, event.pos[1] / 50)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                self.ui_validator(event, True)
+        elif self.scene_mode == 1:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE or event.key == 13:
+                    self.scene_mode = 0
+                    self.catcher.catching(event, True)
+                else:
+                    self.catcher.catching(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                self.scene_mode = 0
+                self.catcher.catching(event, True)
+            elif event.type == pygame.MOUSEMOTION:
+                self.get_para(event.pos[0] / 50, event.pos[1] / 50)
+
+
+class GameScene(BaseScene):
+    pass  # gonna make it later
 
 
 class SceneHolder:
@@ -239,13 +424,17 @@ class SceneHolder:
         getattr(self.scene, name)(*args)
 
     def event_parser(self, event):
-        pass
+        self.scene.proc_evt(event)
 
     def switch_scene(self, scene_new):
         self.scene = scene_new
-        # pygame.draw.rect(screen, '#000000', (0, 0, SCREENRES.current_w, SCREENRES.current_h))
         self.fade_timer = 0
         self.no_event = True
+
+
+# ^^^ SCENE CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ СЦЕНЫ)
+# ------------------------------------------------------------
+# \/ \/ \/ MAIN GAME LOOP AREA START (НАЧАЛО ЗОНЫ РАБОТЫ ИГРЫ)
 
 
 def cla_mainmenu_draw(screen, xoffset=0, yoffset=0):  # REMOVE LATER
@@ -263,21 +452,57 @@ def cla_mainmenu_draw(screen, xoffset=0, yoffset=0):  # REMOVE LATER
 
 
 def mmenu_imgs_init():
-    mmenuimg = ParallaxImage(r'img\mmenu\CLA_MM_BG_0.png', 0, 0, SCREENRES.current_w + 40,
-                             int(SCREENRES.current_w / 2 * 1.25) + 50)
-    clachr = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0004_HD_Obvod.png', SCREENRES.current_w / 2 - 512,
-                           SCREENRES.current_h - 974, 1024, 1024, 1.5, -2)
-    clachr_g = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0001_HD_GS_Zakras.png',
-                             SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, -2, False)
-    clachr_bld = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0002_BLD.png',
-                               SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, -2)
-    clachr_col = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0003_HD_ColOL.png',
-                               SCREENRES.current_w / 2 - 512, SCREENRES.current_h - 974, 1024, 1024, 1.5, -2)
+    clachr_size = int(SCREENRES.current_h * 0.9)
+    mmenuimg_0 = ParallaxImage(r'img\mmenu\CLA_MM_BG_0.png', 0, 0,
+                               SCREENRES.current_w + 40, int(SCREENRES.current_w / 2 * 1.25) + 50)
+    mmenuimg_1 = ParallaxImage(r'img\mmenu\CLA_MM_BG_1.png', 0, 0,
+                               SCREENRES.current_w + 40, int(SCREENRES.current_w / 2 * 1.25) + 50, do_render=False)
+    clachr = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0004_HD_Obvod.png', SCREENRES.current_w / 2 - clachr_size / 2,
+                           SCREENRES.current_h - clachr_size + 50, clachr_size, clachr_size, 1.5, -2)
+    clachr_g = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0001_HD_GS_Zakras.png', SCREENRES.current_w / 2
+                             - clachr_size / 2, SCREENRES.current_h - clachr_size + 50, clachr_size, clachr_size,
+                             1.5, -2, False)
+    clachr_bld = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0002_BLD.png', SCREENRES.current_w / 2 - clachr_size / 2,
+                               SCREENRES.current_h - clachr_size + 50, clachr_size, clachr_size, 1.5, -2)
+    clachr_col = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0003_HD_ColOL.png', SCREENRES.current_w / 2 - clachr_size
+                               / 2, SCREENRES.current_h - clachr_size + 50, clachr_size, clachr_size, 1.5, -2)
     clachr_gno = ParallaxImage(r'img\mmenu\CLA_Chr__0003s_0000_gno.png',
                                SCREENRES.current_w / 2 - 512 - 256 - 128, SCREENRES.current_h - 512 - 256, 1024, 1024,
                                4, -2)
     ttle = ParallaxImage(r'img\mmenu\CLA_Txt_0.png', SCREENRES.current_w / 2 - 1024, 0, 2048, 512, 2.5, -2)
-    return mmenuimg, clachr, clachr_col, clachr_bld, ttle, clachr_gno, clachr_g
+    return mmenuimg_0, mmenuimg_1, clachr, clachr_col, clachr_bld, ttle, clachr_gno, clachr_g
+
+
+def mmenu_obj_init():
+    mmenu = BaseScene()  # wip (subject to be properly organized probably)
+    mmenu.add_img(mmenu_imgs_init())  # wip (subject to be properly organized probably)
+    # pygame.mixer.music.fadeout(10000)
+    killgamebtn = PushBtn(x=SCREENRES.current_w // 2 - 100, y=SCREENRES.current_h // 2 + 256, txt="kill program")
+    killgamebtn.set_func(game_destroyer)
+    mmenu.add_uie(killgamebtn)
+    testbtn = PushBtn(w=450, x=SCREENRES.current_w // 2 - 225,
+                      y=SCREENRES.current_h // 2 + 128, txt="Show a cute boykisser doomer UwU")  # AS WELL AS 161
+    testbtn.set_func(doomkisser_enabler)  # SAME AS 162
+    savebtn = PushBtn(w=450, x=SCREENRES.current_w // 2 - 225,
+                      y=SCREENRES.current_h // 2 + 28, txt="Open save menu (load game)")
+    savebtn.set_func(mmenu_group_switch)  # SAME AS 162
+    mmenu.add_uie(testbtn, savebtn)
+    mmenu.add_uie(mmenu_loadgame_group_init())
+    for _ in range(10):
+        mmenu.add_s(SnowflakeSprite)
+    nmenu = BaseScene()  # multiscene game test remove it later!!!!!!!
+    nmenu.add_uie(testbtn)
+    return mmenu, nmenu
+
+
+def mmenu_loadgame_group_init():
+    canvas = UICanvas(h=700, w=800, x=SCREENRES.current_w // 2 - 400, y=SCREENRES.current_h // 2 - 350)
+    testprompt = UIText(h=1, w=100, x=500, y=500, txt='testprompt')
+    prpt_0 = TextPrompt(h=50, w=100, x=SCREENRES.current_w // 2 - 390, y=SCREENRES.current_h // 2 - 340)
+    testgrp = UIGroup()
+    testgrp.add_elem(canvas, testprompt, prpt_0)
+    testgrp.hide()
+    return testgrp
 
 
 def music_controller():
@@ -294,48 +519,32 @@ def game_destroyer():  # MAYBE FOR BUTTONS TEST
 def doomkisser_enabler():  # FOR BUTTONS TEST
     global do_render_pasxalko
     do_render_pasxalko = not do_render_pasxalko
-    ui_click.play()
     pygame.mixer.music.fadeout(5000)
     sceneslot.switch_scene(nmenu)
 
 
-FADE_IMG = pygame.image.load(r"gamedata\img\ui\fade.png").convert_alpha()
-FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
-pygame.display.set_caption("ColdLine Arkhangelsk")
-pygame.display.set_icon(pygame.image.load(r"doomkisser_V2_s.png"))
-game_isactive = True
-do_render_pasxalko = False
-font_0 = pygame.font.Font(None, 35)  # font
-font_0.set_bold(True)
-mmenu = BaseScene()  # wip (subject to be properly organized probably)
-mmenu.extend_img(mmenu_imgs_init())  # wip (subject to be properly organized probably)
-# pygame.mixer.music.fadeout(10000)
-testbtn = PushBtn(x=SCREENRES.current_w // 2 - 100, y=SCREENRES.current_h // 2 + 256, btntxt="kill program")
-# NAME SAYS FOR THE THING ITSELF
-testbtn.set_func(game_destroyer)  # FUNC-BUTTON SETTER TEST
-mmenu.append_btn(testbtn)
-testbtn2 = PushBtn(w=450, x=SCREENRES.current_w // 2 - 225, y=SCREENRES.current_h // 2 + 128,
-                   btntxt="Show a cute boykisser doomer UwU")  # AS WELL AS 161
-testbtn2.set_func(doomkisser_enabler)  # SAME AS 162
-mmenu.append_btn(testbtn2)
-for _ in range(10):
-    mmenu.append_ent(SnowflakeSprite)
-nmenu = BaseScene()  # wip (subject to be properly organized probably)
-nmenu.append_btn(testbtn2)
-sceneslot = SceneHolder(mmenu)
-dtime = 0  # costill
-while game_isactive:
-    if (mtimer.get_ticks() + dtime) % 170000 >= 169995:  # nowayroyatnee costill (subject to be removed)
-        dtime += music_controller()
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            game_isactive = False
-        if event.type == pygame.MOUSEMOTION or event.type == pygame.MOUSEBUTTONUP:  # costill a little bit
-            sceneslot.funccall('btn_validator', event)
-            sceneslot.funccall('get_para', event.pos[0] / 50, event.pos[1] / 50)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            sceneslot.funccall('btn_validator', event, True)
-    sceneslot.render(screen)
-    if do_render_pasxalko:
-        cla_mainmenu_draw(screen, xoffset=0, yoffset=0)
-    pygame.display.flip()
+def mmenu_group_switch():
+    if mmenu.uihld[3].do_render:
+        mmenu.uihld[3].hide()
+    else:
+        mmenu.uihld[3].show()
+
+
+if __name__ == '__main__':
+    game_isactive = True
+    do_render_pasxalko = False  # VERY TEST
+    mmenu, nmenu = mmenu_obj_init()
+    sceneslot = SceneHolder(mmenu)
+    dtime = 0  # costill
+    while game_isactive:
+        if (mtimer.get_ticks() + dtime) % 170000 >= 169995:  # nowayroyatnee costill (subject to be removed)
+            dtime += music_controller()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                game_isactive = False
+            else:
+                sceneslot.event_parser(event)
+        sceneslot.render(screen)
+        if do_render_pasxalko:
+            cla_mainmenu_draw(screen, xoffset=0, yoffset=0)
+        pygame.display.flip()
