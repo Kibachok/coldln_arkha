@@ -38,6 +38,8 @@ pygame.display.set_caption("ColdLine Arkhangelsk")
 pygame.display.set_icon(pygame.image.load(r"doomkisser_V2_s.png"))
 FADE_IMG = imgloader(r"img\ui\fade.png", -2)  # global used fade image
 FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
+DARKEN_IMG = imgloader(r"img\ui\darken.png", -2)  # global used darken image
+DARKEN_IMG = pygame.transform.scale(DARKEN_IMG, (SCREENRES.current_w, SCREENRES.current_h))
 
 
 # global used commands - end
@@ -328,6 +330,7 @@ class BaseScene:  # scene class base: just a holder for scene content
         self.entgroup = pygame.sprite.Group()  # ent - сущность (будь то NPC (враг) или окошко-тумбочка-кровать)
         self.scene_mode = 0
         self.catcher = None
+        self.dark = False
 
     def __str__(self):
         return (f'{self.para_l}\n{self.imghld}\n{self.uihld}\n{self.sgroup}'
@@ -365,6 +368,8 @@ class BaseScene:  # scene class base: just a holder for scene content
                     screen.blit(_.img, (_.scenepos[0], _.scenepos[1]))
         self.sgroup.draw(screen)
         self.sgroup.update()
+        if self.dark:
+            screen.blit(DARKEN_IMG, (0, 0))
         for _ in self.uihld:
             if _.do_render:
                 _.render(screen, (self.para_l[0], self.para_l[1]))
@@ -526,8 +531,10 @@ def doomkisser_enabler():  # FOR BUTTONS TEST
 def mmenu_group_switch():
     if mmenu.uihld[3].do_render:
         mmenu.uihld[3].hide()
+        mmenu.dark = False
     else:
         mmenu.uihld[3].show()
+        mmenu.dark = True
 
 
 if __name__ == '__main__':
