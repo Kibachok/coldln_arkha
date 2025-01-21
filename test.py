@@ -3,6 +3,7 @@ import sys
 
 import pygame
 
+
 def load_image(name):
     fullname = os.path.join(name)
     if not os.path.isfile(fullname):
@@ -20,33 +21,82 @@ class Area(pygame.sprite.Sprite):
         self.image = Area.image
         self.rect = Area.image.get_rect()
 
-    def move_up(self): # тоже не забыть сделать масштабирование
+    def move_up(self):  # тоже не забыть сделать масштабирование
         global speedw
         a = speedw
-        self.rect = self.rect.move(0, int(a))
+        self.rect = self.rect.move(0, a)
         if speedw < 10:
             speedw += 0.2
 
-    def move_down(self): # тоже не забыть сделать масштабирование
+    def move_down(self):  # тоже не забыть сделать масштабирование
         global speeds
         a = speeds
         self.rect = self.rect.move(0, -int(a))
         if speeds < 10:
             speeds += 0.2
 
-    def move_right(self): # тоже не забыть сделать масштабирование
+    def move_right(self):  # тоже не забыть сделать масштабирование
         global speedd
         a = speedd
         self.rect = self.rect.move(-int(a), 0)
         if speedd < 10:
             speedd += 0.2
 
-    def move_left(self): # тоже не забыть сделать масштабирование
+    def move_left(self):  # тоже не забыть сделать масштабирование
         global speeda
         a = speeda
         self.rect = self.rect.move(int(a), 0)
         if speeda < 10:
             speeda += 0.2
+
+    def inertion_up(self):
+        global speedw
+        speedw = speedw / 2
+        for i in range(int(speedw) * 10, 4, -2):
+            speedw = i / 10
+            ar.rect = ar.rect.move(0, i / 10)
+            areas.draw(screen)
+            heroes.draw(screen)
+            clock.tick(fps)
+            pygame.display.flip()
+
+
+    def inertion_down(self):
+        global speeds
+        speeds = speeds / 2
+        for i in range(int(speeds) * 10, 4, -2):
+            speeds = i / 10
+            ar.rect = ar.rect.move(0, -(i / 10))
+            areas.draw(screen)
+            heroes.draw(screen)
+            clock.tick(fps)
+            pygame.display.flip()
+
+
+    def inertion_left(self):
+        global speeda
+        speeda = speeda / 2
+        for i in range(int(speeda) * 10, 4, -2):
+            speeda = i / 10
+            ar.rect = ar.rect.move(i / 10, 0)
+            areas.draw(screen)
+            heroes.draw(screen)
+            clock.tick(fps)
+            pygame.display.flip()
+
+
+    def inertion_right(self):
+        global speedd
+        speedd = speedd / 2
+        for i in range(int(speedd) * 10, 4, -2):
+            speedd = i / 10
+            ar.rect = ar.rect.move(-(i / 10), 0)
+            areas.draw(screen)
+            heroes.draw(screen)
+            clock.tick(fps)
+            pygame.display.flip()
+
+
 
 if __name__ == '__main__':
     pygame.init()
@@ -62,8 +112,9 @@ if __name__ == '__main__':
     hero = pygame.sprite.Sprite(heroes)
     hero_image = load_image(r"gamedata\img\hero.png").convert_alpha()
     hero.image = hero_image
+
     hero.rect = hero.image.get_rect()
-    hero.rect.x = SCREENRES.current_w // 2 - hero.rect[2] // 2 # чтоб он в центре спавнился
+    hero.rect.x = SCREENRES.current_w // 2 - hero.rect[2] // 2  # чтоб он в центре спавнился
     hero.rect.y = SCREENRES.current_h // 2 - hero.rect[3] // 2  # не забыть сделать увеличение/уменьшение размеров героя
 
     fps = 60
@@ -79,15 +130,14 @@ if __name__ == '__main__':
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYUP:
-                print('ага')
                 if event.key == pygame.K_w:
-                    speedw = 0.6
+                    ar.inertion_up()
                 if event.key == pygame.K_a:
-                    speeda = 0.6
+                    ar.inertion_left()
                 if event.key == pygame.K_s:
-                    speeds = 0.6
+                    ar.inertion_down()
                 if event.key == pygame.K_d:
-                    speedd = 0.6
+                    ar.inertion_right()
 
         keys = pygame.key.get_pressed()
         # движение по зажатию
@@ -99,7 +149,6 @@ if __name__ == '__main__':
             ar.move_left()
         if keys[pygame.K_s]:
             ar.move_down()
-
 
         areas.draw(screen)
         heroes.draw(screen)
