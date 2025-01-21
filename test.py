@@ -51,51 +51,31 @@ class Area(pygame.sprite.Sprite):
 
     def inertion_up(self):
         global speedw
-        speedw = speedw / 2
-        for i in range(int(speedw) * 10, 4, -2):
-            speedw = i / 10
-            ar.rect = ar.rect.move(0, i / 10)
-            areas.draw(screen)
-            heroes.draw(screen)
-            clock.tick(fps)
-            pygame.display.flip()
-
+        if speedw >= 0.6:
+            a = speedw
+            self.rect = self.rect.move(0, a)
+            speedw -= 0.4
 
     def inertion_down(self):
         global speeds
-        speeds = speeds / 2
-        for i in range(int(speeds) * 10, 4, -2):
-            speeds = i / 10
-            ar.rect = ar.rect.move(0, -(i / 10))
-            areas.draw(screen)
-            heroes.draw(screen)
-            clock.tick(fps)
-            pygame.display.flip()
-
+        if speeds >= 0.6:
+            a = speeds
+            self.rect = self.rect.move(0, -int(a))
+            speeds -= 0.4
 
     def inertion_left(self):
         global speeda
-        speeda = speeda / 2
-        for i in range(int(speeda) * 10, 4, -2):
-            speeda = i / 10
-            ar.rect = ar.rect.move(i / 10, 0)
-            areas.draw(screen)
-            heroes.draw(screen)
-            clock.tick(fps)
-            pygame.display.flip()
-
+        if speeda >= 0.6:
+            a = speeda
+            self.rect = self.rect.move(int(a), 0)
+            speeda -= 0.4
 
     def inertion_right(self):
         global speedd
-        speedd = speedd / 2
-        for i in range(int(speedd) * 10, 4, -2):
-            speedd = i / 10
-            ar.rect = ar.rect.move(-(i / 10), 0)
-            areas.draw(screen)
-            heroes.draw(screen)
-            clock.tick(fps)
-            pygame.display.flip()
-
+        if speedd >= 0.6:
+            a = speedd
+            self.rect = self.rect.move(-int(a), 0)
+            speedd -= 0.4
 
 
 if __name__ == '__main__':
@@ -138,7 +118,15 @@ if __name__ == '__main__':
                     ar.inertion_down()
                 if event.key == pygame.K_d:
                     ar.inertion_right()
-
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_w:
+                    speedw = 0.6
+                if event.key == pygame.K_a:
+                    speeda = 0.6
+                if event.key == pygame.K_s:
+                    speeds = 0.6
+                if event.key == pygame.K_d:
+                    speedd = 0.6
         keys = pygame.key.get_pressed()
         # движение по зажатию
         if keys[pygame.K_w]:
@@ -149,6 +137,15 @@ if __name__ == '__main__':
             ar.move_left()
         if keys[pygame.K_s]:
             ar.move_down()
+        # инерция
+        if not keys[pygame.K_w]:
+            ar.inertion_up()
+        if not keys[pygame.K_d]:
+            ar.inertion_right()
+        if not keys[pygame.K_a]:
+            ar.inertion_left()
+        if not keys[pygame.K_s]:
+            ar.inertion_down()
 
         areas.draw(screen)
         heroes.draw(screen)
