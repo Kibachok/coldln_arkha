@@ -3,6 +3,7 @@ import os
 
 import pygame
 from random import randint, randrange, random
+import test
 
 
 def imgloader(localpathname, colorkey=None):  # use this to load imgs | использовать для загрузки картинок
@@ -629,6 +630,8 @@ def mmenu_sgame():
     sname = mmenu.get_prior().get_elem('UI_NGAME_PRPT').txt
     # пиши код базы данных сдеся
     mmenu.get_prior().get_elem('UI_NGAME_PRPT').txt = ''
+    sceneslot.switch_scene(None)
+    test.play()
 
 
 if __name__ == '__main__':
