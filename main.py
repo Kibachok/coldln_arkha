@@ -522,8 +522,6 @@ class SceneHolder:
 def cla_mainmenu_draw(screen, xoffset=0, yoffset=0):  # REMOVE LATER
     doomerochek = pygame.image.load(r'doomkisser_V2_s.png').convert()
     doomerochek = pygame.transform.scale(doomerochek, (510, 510))
-    # for _ in imgs:
-    # screen.blit(_[0], (_[1][0] - (xoffset * _[2]), _[1][1] - (yoffset * _[2])))
     screen.blit(doomerochek, (0, 0))
     font = pygame.font.Font(None, 35)
     text = font.render("Cold Line :: Arkhangelsk (Dev-alpha)", False, '#CACAEF')
