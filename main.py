@@ -58,7 +58,7 @@ FONT_1.set_bold(True)
 UI_PALETTE = {'col_txt': '#202020', 'col_para': '#AAAACF', 'col_koyma': '#D0D0D8', 'col_sel': '#BBBBCC',
               'col_0': '#DFDFE8'}
 mtimer = pygame.time  # costill
-pygame.mixer.music.load(r"gamedata\aud\mus\belye_dnee.mp3")  # MOVE IT TO SOME SCENE METHOD
+pygame.mixer.music.load(r"gamedata\aud\mus\kino_bolny_instrumental_aisep.mp3")  # MOVE IT TO SOME SCENE METHOD
 pygame.mixer.music.play()  # test (look 30)
 pygame.mixer.music.set_volume(1.0)  # test (look 30)
 UI_CLICK = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
@@ -150,7 +150,7 @@ class PlayerOffsetImage(RenderableImage):  # container for image with support of
         super().__init__(name, filepath, x, y, tw, th, colorkey, do_render)
 
     def render(self, screen, *params):
-        screen.blit(self.img, (self.scenepos[0] - params[0], self.scenepos[1] - params[1]))
+        screen.blit(self.img, (self.scenepos[0] - params[0] * Y_SFAC * 4, self.scenepos[1] - params[1] * Y_SFAC * 4))
 
 
 def sflake_init():
@@ -210,7 +210,9 @@ class BaseFramedSprite(pygame.sprite.Sprite):
 class PlayerRotatableSprite(pygame.sprite.Sprite):
     def __init__(self, filename, x=0, y=0, *sgroup):
         super().__init__(*sgroup)
-        self.image = pygame.transform.scale(imgloader(filename), (Y_SFAC * 256, Y_SFAC * 256))
+        self.image_nonrotated = pygame.transform.scale(imgloader(filename), (Y_SFAC * 256, Y_SFAC * 256))
+        self.image_45drotated = pygame.transform.rotate(self.image_nonrotated, 45)
+        self.image = self.image_nonrotated
         self.rect = self.image.get_rect()
         self.rect.center = x, y
         self.cdg = 0
@@ -220,7 +222,8 @@ class PlayerRotatableSprite(pygame.sprite.Sprite):
             self.rotate(deg)
 
     def rotate(self, deg):
-        self.image = pygame.transform.rotate(self.image, (deg - self.cdg) * 45)
+        self.image = pygame.transform.rotate(self.image_45drotated if deg % 2 != 0 else self.image_nonrotated,
+                                             (deg - 1) * 45 if deg % 2 != 0 else deg * 45)
         self.cdg = deg
         self.rect = self.image.get_rect(center=self.rect.center)
 
@@ -228,20 +231,22 @@ class PlayerRotatableSprite(pygame.sprite.Sprite):
 class PlayerRotatableFramedSprite(BaseFramedSprite):
     def __init__(self, filename, f_x=1, f_y=1, x=0, y=0, frate=10, *sgroup):
         super().__init__(filename, f_x, f_y, x, y, frate, *sgroup)
+        self.imgset_nonrotated = self.imgset
+        self.imgset_45drotated = list(map(lambda _: pygame.transform.rotate(_, 45), self.imgset_nonrotated))
         self.image = self.image = pygame.transform.scale(self.image, (Y_SFAC * 256, Y_SFAC * 256))
         self.cdg = 0
 
     def update(self, *deg):
         super().update()
-        if self.cdg != deg:
+        if self.cdg != deg[0]:
             self.rotate(*deg)
 
     def rotate(self, deg):
-        deltadeg = (deg - self.cdg) * 45
-        self.image = pygame.transform.rotate(self.image, deltadeg)
-        self.imgset = [pygame.transform.rotate(_, deltadeg) for _ in self.imgset]
+        self.imgset = [pygame.transform.rotate(_, (deg - 1) * 45 if deg % 2 != 0 else deg * 45) for _ in
+                       (self.imgset_45drotated if deg % 2 != 0 else self.imgset_nonrotated)]
+        self.image = self.imgset[self.frame]
         self.cdg = deg
-        self.rect = self.image.get_rect(center=self.rect.center)
+        self.rect = self.imgset[0].get_rect(center=self.rect.center)
 
 
 # ^^^ GRAPHIC ELS CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ ГРАФИКИ)
@@ -616,16 +621,22 @@ class Player:
         self.orient = (0, 0)
         self.deg = 0
         self.coords = [0, 0]
-        self.vels = [0, 0, 0, 0]  # velocities / скорости (0=up,1=down,2=right,3=left)
+        self.vel = [0, 0]  # velocities / скорости (0=down,1=right)
+        self.acc = 480  # acceleration, in pix/sec
+        self.decc = 960  # deceleration, in pix/sec
+        self.sl = 240  # speed limit, in pix/sec
         self.clip = None
         self.weap = 0
         self.status = 0
         self.cf = False  # cycle flag; represents one event cycle
         self.orient_l = []
+        self.timedelta = pygame.time.Clock()
 
-    def proc_evt(self, event, keys):
+    def proc_evt(self, keys, *event):
         if self.status != 2:
-            self.calc_orient(keys)
+            if keys:
+                self.calc_orient(keys)
+            self.move()
             if self.status != 0:
                 if self.orient == (0, 0):
                     self.status = 0
@@ -634,27 +645,79 @@ class Player:
                     self.status = 1
 
     def calc_orient(self, keys):
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            if keys[pygame.K_d] or keys[pygame.K_LEFT]:
-                self.set_orient((1, -1))
-            elif keys[pygame.K_a] or keys[pygame.K_RIGHT]:
-                self.set_orient((-1, -1))
+            if keys[pygame.K_w] or keys[pygame.K_UP]:
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    self.set_orient((1, -1))
+                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    self.set_orient((-1, -1))
+                else:
+                    self.set_orient((0, -1))
+            elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    self.set_orient((1, 1))
+                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    self.set_orient((-1, 1))
+                else:
+                    self.set_orient((0, 1))
             else:
-                self.set_orient((0, -1))
-        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            if keys[pygame.K_d] or keys[pygame.K_LEFT]:
-                self.set_orient((1, 1))
-            elif keys[pygame.K_a] or keys[pygame.K_RIGHT]:
-                self.set_orient((-1, 1))
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    self.set_orient((1, 0))
+                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    self.set_orient((-1, 0))
+                else:
+                    self.set_orient((0, 0))
+
+    def move(self):
+        td = self.timedelta.tick() / 1000
+        # reducing diagonal speed
+        self.coords[0] += self.vel[0] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
+                                                    or self.orient[1] != 0 and self.orient[0] == 0) else 0.71)
+        self.coords[1] += self.vel[1] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
+                                                    or self.orient[1] != 0 and self.orient[0] == 0) else 0.71)
+        if self.orient[0] != 0:
+            if self.orient[0] == 1:
+                if self.vel[0] + self.acc * td <= self.sl:
+                    self.vel[0] += self.acc * self.orient[0] * td
+                else:
+                    self.vel[0] = self.sl
             else:
-                self.set_orient((0, 1))
+                if self.vel[0] + self.acc * td >= -self.sl:
+                    self.vel[0] += self.acc * self.orient[0] * td
+                else:
+                    self.vel[0] = -self.sl
         else:
-            if keys[pygame.K_d] or keys[pygame.K_LEFT]:
-                self.set_orient((1, 0))
-            elif keys[pygame.K_a] or keys[pygame.K_RIGHT]:
-                self.set_orient((-1, 0))
+            if self.vel[0] > 0:
+                if self.vel[0] - self.decc * td >= 0:
+                    self.vel[0] -= self.decc * td
+                else:
+                    self.vel[0] = 0
             else:
-                self.set_orient((0, 0))
+                if self.vel[0] + self.decc * td <= 0:
+                    self.vel[0] += self.decc * td
+                else:
+                    self.vel[0] = 0
+        if self.orient[1] != 0:
+            if self.orient[1] == 1:
+                if self.vel[1] + self.acc * td <= self.sl:
+                    self.vel[1] += self.acc * -self.orient[1] * td
+                else:
+                    self.vel[1] = self.sl
+            else:
+                if self.vel[1] + self.acc * td >= -self.sl:
+                    self.vel[1] += self.acc * -self.orient[1] * td
+                else:
+                    self.vel[1] = -self.sl
+        else:
+            if self.vel[1] < 0:
+                if self.vel[1] + self.decc * td <= 0:
+                    self.vel[1] += self.decc * td
+                else:
+                    self.vel[1] = 0
+            else:
+                if self.vel[1] - self.decc * td >= 0:
+                    self.vel[1] -= self.decc * td
+                else:
+                    self.vel[1] = 0
 
     def set_orient(self, orient):
         if orient != (0, 0) or orient != self.orient:
@@ -784,6 +847,9 @@ class BaseScene:  # scene class base: just a holder for scene content
                 self.scene_mode = 0
                 self.catcher.catching(event, True)
 
+    def const_update(self, *args):
+        pass
+
     def render(self, screen):
         # rendering images
         for _ in self.imghld.values():
@@ -859,12 +925,12 @@ class GameScene(BaseScene):
             if _.do_render:
                 _.render(screen, (self.para_l[0], self.para_l[1]))
         # rendering prior UIGroup
+        self.player.render(screen)
         if self.prior_uig:
             screen.blit(DARKEN_IMG, (0, 0))
             self.get_uie(self.prior_uig).render(screen, (self.para_l[0], self.para_l[1]))
         if self.dial:
             self.dial.render(screen)
-        self.player.render(screen)
 
     def ui_validator(self, event, click=False):
         if self.dial:
@@ -874,7 +940,7 @@ class GameScene(BaseScene):
 
     def proc_evt(self, event, **kwargs):
         self.get_para(event)
-        self.player.proc_evt(event, pygame.key.get_pressed())
+        self.player.proc_evt(None, event)
         if self.scene_mode == 0:
             if event.type == pygame.MOUSEMOTION or event.type == pygame.MOUSEBUTTONUP:
                 self.ui_validator(event)
@@ -905,6 +971,10 @@ class GameScene(BaseScene):
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_SPACE:
                     self.dial.update()
 
+    def const_update(self, keys):
+        if self.scene_mode == 0:
+            self.player.proc_evt(keys)
+
 
 class SceneHolder:
     def __init__(self, scene):
@@ -932,6 +1002,9 @@ class SceneHolder:
 
     def event_parser(self, event):
         self.scene.proc_evt(event)
+
+    def const_parser(self, keys):
+        self.scene.const_update(keys)
 
     def switch_scene(self, scene_new):
         if self.scene:
@@ -988,7 +1061,7 @@ def mmenu_imgs_init():
     clachr_gno = ParallaxImage('CLA_CHR_GNO', r'mmenu\CLA_Chr__0003s_0000_gno.png',
                                X_CENTER - 512 - 256 - 128, SCREENRES.current_h - 512 - 256, 0.8, 0.8,
                                4, -2)
-    ttle = ParallaxImage('TITLE', r'mmenu\CLA_Txt_0.png', X_CENTER - 1024, 0, Y_SFAC / 2, Y_SFAC / 2, 2.5, -2)
+    ttle = ParallaxImage('TITLE', r'mmenu\CLA_Txt_0.png', X_CENTER - 1024 * Y_SFAC, 0, Y_SFAC / 2, Y_SFAC / 2, 2.5, -2)
     return mmenuimg_0, mmenuimg_1, clachr, clachr_col, clachr_bld, ttle, clachr_gno, clachr_g
 
 
@@ -1094,6 +1167,7 @@ if __name__ == '__main__':
     while GAME_RUNNING:
         if (mtimer.get_ticks() + dtime) % 170000 >= 169995:  # nowayroyatnee costill (subject to be removed)
             dtime += music_controller()
+        sceneslot.const_parser(pygame.key.get_pressed())
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 GAME_RUNNING = False
