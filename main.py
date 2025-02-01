@@ -3,6 +3,7 @@ import os
 
 import pygame
 import csv
+import sqlite3
 from random import randint, randrange, random
 
 
@@ -33,22 +34,14 @@ def imgloader(localpathname, colorkey=None):  # use this to load imgs | испо
     return img
 
 
-def lvlloader():  # wip do not use | используется для загрузки уровней (скорее всего через CSV будет а не через JSON)
-    # потому что условия для оценивания проекта, НЕ ТРОГАТЬ пока что
-    pass
-
-
-def db_executor():  # можно в передаваемые аргументы записать если что SQL запрос
-    # весь код для взаимодействия с СУБД возможно наверно я не знаю
-    pass
-
-
 # UPPERCASE = global used variable
 # global used/required commands
 pygame.init()
 pygame.mixer.init()
+DB = sqlite3.connect(r'savedata\savedata.sqlite3')
 DIALS = csvloader(f'dials/dials.csv')
 BASELOCALE = csvloader('locals/basegame.csv')
+WLOCALE = csvloader('locals/weaps.csv')
 LOCALES = ['en', 'ru']
 CLOCALE = 'en'
 FONT_0 = pygame.font.Font(None, 35)
@@ -57,17 +50,21 @@ FONT_1 = pygame.font.Font(None, 50)
 FONT_1.set_bold(True)
 UI_PALETTE = {'col_txt': '#202020', 'col_para': '#AAAACF', 'col_koyma': '#D0D0D8', 'col_sel': '#BBBBCC',
               'col_0': '#DFDFE8'}
-mtimer = pygame.time  # costill
-pygame.mixer.music.load(r"gamedata\aud\mus\kino_bolny_instrumental_aisep.mp3")  # MOVE IT TO SOME SCENE METHOD
-pygame.mixer.music.play()  # test (look 30)
-pygame.mixer.music.set_volume(1.0)  # test (look 30)
+pygame.mixer.music.set_volume(0.8)
 UI_CLICK = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
 UI_ESCAPE = pygame.mixer.Sound(r"gamedata\aud\ui\menu_escape.wav")  # peaceding from tarkov
+WEAP_PICKUP = pygame.mixer.Sound(r"gamedata\aud\ui\weap_pickup.wav")  # peaceding from tarkov
+DEATH_SND = pygame.mixer.Sound(r"gamedata\aud\ui\death.wav")  # peaceding from hl2
+WALK = [pygame.mixer.Sound(r"gamedata\aud\game\walk_0.wav"), pygame.mixer.Sound(r"gamedata\aud\game\walk_1.wav"),
+        pygame.mixer.Sound(r"gamedata\aud\game\walk_2.wav")]  # peaceding from tarkov
 SCREENRES = pygame.display.Info()  # screen resolution required for some imgs to be properly set on canvas
 X_CENTER = SCREENRES.current_w // 2  # just a separate coord of screen center value to not repeat the code
 Y_CENTER = SCREENRES.current_h // 2  # same as X_CENTER
 X_SFAC = SCREENRES.current_w // 250 / 4
-Y_SFAC = SCREENRES.current_h // 250 / 4
+Y_SFAC = SCREENRES.current_h // 125 / 8
+REL_SCALE = Y_SFAC * 4
+POFFSET_X = X_CENTER - Y_SFAC * 64
+POFFSET_Y = Y_CENTER - Y_SFAC * 64
 print(X_SFAC, Y_SFAC)
 screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
 pygame.display.set_caption("ColdLine Arkhangelsk")
@@ -76,6 +73,32 @@ FADE_IMG = imgloader(r"ui\fade.png", -2)  # global used fade image
 FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
 DARKEN_IMG = imgloader(r"ui\darken.png", -2)  # global used darken image
 DARKEN_IMG = pygame.transform.scale(DARKEN_IMG, (SCREENRES.current_w, SCREENRES.current_h))
+
+
+def lvlloader():  # wip do not use | используется для загрузки уровней
+    pass
+
+
+def lvlsaver():
+    pass
+
+
+def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games
+    cs = DB.cursor()
+    if type == 0:
+        if cs.execute('''SELECT savename FROM saves WHERE savename=?''', (*data, )).fetchall():
+            return 'mmenu_sgame_e_ae'
+        try:
+            cs.execute('''INSERT INTO saves(savename, lvl) VALUES(?, 0)''', (*data, )).fetchall()
+            DB.commit()
+            return
+        except sqlite3.OperationalError:
+            return 'mmenu_sgame_e_ws'
+    elif type == 1:
+        try:
+            return cs.execute('''SELECT savename FROM saves''').fetchall()
+        except sqlite3.OperationalError:
+            return False
 
 
 def locgetter(loc, key):
@@ -146,11 +169,12 @@ class ParallaxImage(RenderableImage):  # container for image with all parallax (
 
 class PlayerOffsetImage(RenderableImage):  # container for image with support of relative to player offset
     # базовый контейнер рендер-изображения с поддержкой относительного к игроку смещения
-    def __init__(self, name, filepath, x=0.0, y=0.0, tw=0.0, th=0.0, colorkey=None, do_render=True):
+    def __init__(self, name, filepath, x=0.0, y=0.0, tw=REL_SCALE, th=REL_SCALE, colorkey=None, do_render=True):
         super().__init__(name, filepath, x, y, tw, th, colorkey, do_render)
 
     def render(self, screen, *params):
-        screen.blit(self.img, (self.scenepos[0] - params[0] * Y_SFAC * 4, self.scenepos[1] - params[1] * Y_SFAC * 4))
+        screen.blit(self.img, (self.scenepos[0] - params[0] * REL_SCALE + POFFSET_X, self.scenepos[1] - params[1]
+                               * REL_SCALE + POFFSET_Y))
 
 
 def sflake_init():
@@ -187,7 +211,8 @@ class BaseFramedSprite(pygame.sprite.Sprite):
     def __init__(self, filename, f_x=1, f_y=1, x=0, y=0, frate=10, *sgroup):
         super().__init__(*sgroup)
         sequence = imgloader(filename)
-        sequence = pygame.transform.scale(sequence, (Y_SFAC * 512, Y_SFAC * 256))
+        sequence = pygame.transform.scale(sequence, (REL_SCALE * sequence.get_width(), REL_SCALE
+                                                     * sequence.get_height()))
         self.frame = 0
         self.framerate = (1 / frate) * 1000
         self.time = 0
@@ -210,8 +235,8 @@ class BaseFramedSprite(pygame.sprite.Sprite):
 class PlayerRotatableSprite(pygame.sprite.Sprite):
     def __init__(self, filename, x=0, y=0, *sgroup):
         super().__init__(*sgroup)
-        self.image_nonrotated = pygame.transform.scale(imgloader(filename), (Y_SFAC * 256, Y_SFAC * 256))
-        self.image_45drotated = pygame.transform.rotate(self.image_nonrotated, 45)
+        self.image_nonrotated = pygame.transform.scale(imgloader(filename), (REL_SCALE * 64, REL_SCALE * 64))
+        self.image_45drotated = pygame.transform.rotate(self.image_nonrotated, -45)
         self.image = self.image_nonrotated
         self.rect = self.image.get_rect()
         self.rect.center = x, y
@@ -223,7 +248,7 @@ class PlayerRotatableSprite(pygame.sprite.Sprite):
 
     def rotate(self, deg):
         self.image = pygame.transform.rotate(self.image_45drotated if deg % 2 != 0 else self.image_nonrotated,
-                                             (deg - 1) * 45 if deg % 2 != 0 else deg * 45)
+                                             (deg - 1) * -45 if deg % 2 != 0 else deg * -45)
         self.cdg = deg
         self.rect = self.image.get_rect(center=self.rect.center)
 
@@ -232,17 +257,21 @@ class PlayerRotatableFramedSprite(BaseFramedSprite):
     def __init__(self, filename, f_x=1, f_y=1, x=0, y=0, frate=10, *sgroup):
         super().__init__(filename, f_x, f_y, x, y, frate, *sgroup)
         self.imgset_nonrotated = self.imgset
-        self.imgset_45drotated = list(map(lambda _: pygame.transform.rotate(_, 45), self.imgset_nonrotated))
+        self.imgset_45drotated = list(map(lambda _: pygame.transform.rotate(_, -45), self.imgset_nonrotated))
         self.image = self.image = pygame.transform.scale(self.image, (Y_SFAC * 256, Y_SFAC * 256))
         self.cdg = 0
+        self.pf = 0
 
     def update(self, *deg):
         super().update()
+        if self.frame != self.pf:
+            self.pf = self.frame
+            WALK[randint(0, 2)].play()
         if self.cdg != deg[0]:
             self.rotate(*deg)
 
     def rotate(self, deg):
-        self.imgset = [pygame.transform.rotate(_, (deg - 1) * 45 if deg % 2 != 0 else deg * 45) for _ in
+        self.imgset = [pygame.transform.rotate(_, (deg - 1) * -45 if deg % 2 != 0 else deg * -45) for _ in
                        (self.imgset_45drotated if deg % 2 != 0 else self.imgset_nonrotated)]
         self.image = self.imgset[self.frame]
         self.cdg = deg
@@ -401,16 +430,20 @@ class PushBtn(UIInterElem):
 
 
 class TextPrompt(UIInterElem):
-    def __init__(self, name, x=0, y=0, w=0, h=0, txt='', font=None):
+    def __init__(self, name, x=0, y=0, w=0, h=0, txt='', font=None, maxl=32):
         super().__init__(name, None, x, y, w, h, txt, font=font)
         self.palette['col_0'] = '#EFEFEF'
+        self.maxl = maxl
 
     def catching(self, event, breakevt=False):
         if event.type == pygame.KEYDOWN and not breakevt:
-            if event.key == pygame.K_BACKSPACE:
+            if event.key == pygame.K_BACKSPACE or event.key == pygame.K_DELETE:
                 self.txt = self.txt[:-1]
             else:
+                print(event.key)
                 self.txt += f'{event.unicode}'
+                if len(self.txt) > self.maxl:
+                    self.txt = self.txt[:-1]
         elif breakevt:
             self.status = 0
 
@@ -511,6 +544,72 @@ class UIGroup:
                 _.render(screen, para)
 
 
+class SaveloadMenu(UIGroup):
+    canvas = UICanvas("CANVAS", X_CENTER - 300, Y_CENTER - 300, 600, 600)
+    namefields, btnslist = [], []
+    for _ in range(5):
+        nf = PushBtn(f'SN_{_}', False, X_CENTER - 225, Y_CENTER - 200 + 75 * _, 225, 50, '')
+        nf.recolor('col_1', '#d5d5d5')
+        nf.set_active(False, True)
+        namefields.append(nf)
+        pb = PushBtn(f'PB_{_}', BASELOCALE, X_CENTER + 25, Y_CENTER - 200 + 75 * _, 175, 50, 'mmenu_slmenu_p')
+        btnslist.append(pb)
+    txt = UIText('SLTXT', BASELOCALE, X_CENTER, Y_CENTER - 225, 0, 0, 'mmenu_slmenu_label', FONT_1)
+    button_prev = PushBtn('B_PREV', False, X_CENTER - 120, Y_CENTER + 225, 50, 50, '<')
+    button_next = PushBtn('B_NEXT', False, X_CENTER + 75, Y_CENTER + 225, 50, 50, '>')
+
+    def __init__(self, name):
+        super().__init__(name)
+        self.page = 0
+        self.saves = self.load_saves()
+        self.pbtn = SaveloadMenu.button_prev
+        self.nbtn = SaveloadMenu.button_next
+        self.pbtn.set_func(self.page_prev)
+        self.nbtn.set_func(self.page_next)
+        self.add_elem(SaveloadMenu.canvas, SaveloadMenu.txt, self.pbtn, self.nbtn, *SaveloadMenu.namefields,
+                      *SaveloadMenu.btnslist)
+
+    def load_saves(self):
+        saves = db_executor(1)
+        print(saves)
+        return saves
+
+    def show(self):
+        super().show()
+        self.page = 0
+        self.saves = self.load_saves()
+        self.set_values()
+
+    def page_prev(self):
+        if self.page > 0:
+            self.page -= 1
+        else:
+            self.page = (len(self.saves) // 5 + (1 if len(self.saves) % 5 > 0 else 0)) - 1
+        self.set_values()
+
+    def page_next(self):
+        if self.page >= (len(self.saves) // 5 + (1 if len(self.saves) % 5 > 0 else 0)) - 1:
+            self.page = 0
+        else:
+            self.page += 1
+        self.set_values()
+
+    def set_values(self):
+        for _ in range(5):
+            self.get_elem(f'SN_{_}').set_txt('')
+            self.get_elem(f'PB_{_}').set_active(False, True)
+        if (self.page + 1) * 5 > len(self.saves):
+            for _ in range(len(self.saves) % 5):
+                self.get_elem(f'SN_{_}').set_txt(self.saves[self.page * 5 + _][0])
+                self.get_elem(f'PB_{_}').set_active(True, True)
+        else:
+            for _ in range(5):
+                self.get_elem(f'SN_{_}').set_txt(self.saves[self.page * 5 + _][0])
+                self.get_elem(f'PB_{_}').set_active(True, True)
+
+
+
+
 def dial_icons_init():
     charicons = []
     paths = os.listdir(os.path.join(r'gamedata\img\game\dial'))
@@ -522,7 +621,7 @@ def dial_icons_init():
 
 
 class DialSeq:
-    dial_img = RenderableImage('IMG_DIAL', r'ui\dial_window.png')
+    dial_img = RenderableImage('IMG_DIAL', r'ui\dial_window.png', tw=Y_SFAC, th=Y_SFAC)
     char_imgs = dial_icons_init()
     zaglush_img = RenderableImage('doomkisser', '', x=SCREENRES.current_w - 512 * Y_SFAC - 50,
                                   y=SCREENRES.current_h - 512 * Y_SFAC - 50, th=Y_SFAC / 4, tw=Y_SFAC / 4)
@@ -593,18 +692,227 @@ class DialSeq:
 #  \/ \/ \/ SCENE CLASSES START (НАЧАЛО ЗОНЫ КЛАССОВ СЦЕНЫ)
 
 
+class PlayerClip(pygame.sprite.Sprite):
+    PCG = pygame.sprite.Group()
+
+    def __init__(self, coords=(0, 0)):
+        super().__init__(PlayerClip.PCG)
+        self.rect = pygame.Rect(POFFSET_X + coords[0], POFFSET_Y + coords[1], REL_SCALE * 32, REL_SCALE * 32)
+
+
+class TriggerClip(pygame.sprite.Sprite):
+    def __init__(self, x, y, w, h, func, once, *tcg):
+        super().__init__(*tcg)
+        self.x = x
+        self.y = y
+        self.rect = pygame.Rect(x + POFFSET_X, y + POFFSET_Y, w * REL_SCALE, h * REL_SCALE)
+        self.once = once
+        self.func = func
+        self.image = pygame.Surface((w * REL_SCALE, h * REL_SCALE))
+        pygame.draw.circle(self.image, '#00FF00', (self.rect.x, self.rect.y), 128)  # debug
+
+    def update(self, pcoord, scene, *args, **kwargs):
+        self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
+                         self.rect.width, self.rect.height)  # use as a reference for relational movement
+        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+            self.func(scene)
+            if self.once:
+                self.kill()
+
+
+class DropItem(pygame.sprite.Sprite):
+    def __init__(self, x, y, name, img, *icg):
+        super().__init__(*icg)
+        rel32 = REL_SCALE * 32
+        self.x = x
+        self.y = y
+        self.rect = pygame.Rect(x + POFFSET_X, y + POFFSET_Y, rel32, rel32)
+        self.name = name
+        img = imgloader(img)
+        self.image = pygame.transform.scale(img, (rel32, rel32))
+
+    def update(self, pcoord, scene, *args, **kwargs):
+        self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
+                         self.rect.width, self.rect.height)
+        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+            scene.get_uie('UI_TXT_IPCK').set_txt(f'{locgetter(BASELOCALE, 'item_pckp')}{self.name}')
+        else:
+            scene.get_uie('UI_TXT_IPCK').set_txt('')
+
+
+class DropWeap(pygame.sprite.Sprite):
+    def __init__(self, x, y, wid, *icg):
+        super().__init__(*icg)
+        rel32 = REL_SCALE * 32
+        self.x = x
+        self.y = y
+        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X, y * REL_SCALE + POFFSET_Y, rel32, rel32)
+        self.wid = wid
+        self.image = pygame.transform.scale(self.load_weap(), (rel32, rel32))
+
+    def load_weap(self):
+        if os.path.isfile(r'gamedata\img\game\items\w_' + str(self.wid) + '.png'):
+            return imgloader(r'game\items\w_' + str(self.wid) + '.png')
+        else:
+            return imgloader(r'game\items\w_1.png')
+
+    def update(self, pcoord, scene, *args, **kwargs):
+        self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
+                         self.rect.width, self.rect.height)
+        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+            scene.get_uie('UI_TXT_IPCK').set_txt(f'{locgetter(BASELOCALE, 'item_pckp')}'
+                                                 f'{locgetter(WLOCALE, 'w_' + str(self.wid))}'
+                                                 f'{(' ' + '(' + locgetter(WLOCALE, 'w_' + str(scene.player.weap)) 
+                                                     + locgetter(BASELOCALE, 'item_drop')) 
+                                                 if scene.player.weap != 0 else ''}')
+            if scene.player.interact_request:
+                self.replicate(scene.player.weap_exchange(self.wid), scene)
+                self.kill()
+        else:
+            scene.get_uie('UI_TXT_IPCK').set_txt('')
+
+    def replicate(self, new_weap, scene):
+        if new_weap != 0:
+            self.groups()[0].add(DropWeap(scene.player.coords[0] + (random() - 0.5) * 64, scene.player.coords[1] +
+                                      (random() - 0.5) * 64, new_weap))
+
+
+class Prop(pygame.sprite.Sprite):
+    def __init__(self, x, y, w, h, img, dynamic=False, drag=1, *mecg):
+        super().__init__(*mecg)
+        rel32 = REL_SCALE * 32
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X, y * REL_SCALE + POFFSET_Y, REL_SCALE * w, REL_SCALE * h)
+        img = imgloader(img)
+        self.image = pygame.transform.scale(img, (rel32, rel32))
+        self.dynamic = dynamic
+        self.drag = drag
+        self.vel = 0
+        self.direction = 0
+        self.decc = 960
+        self.timedelta = pygame.time.Clock()
+
+    def update(self, pcoord, scene, *args, **kwargs):
+        td = self.timedelta.tick() / 1000
+        if self.direction == 0:
+            self.x -= self.vel * td
+        elif self.direction == 1:
+            self.x += self.vel * td
+        elif self.direction == 2:
+            self.y -= self.vel * td
+        elif self.direction == 3:
+            self.y += self.vel * td
+        if self.vel - self.decc * td >= 0:
+            self.vel -= self.decc * td
+        else:
+            self.vel = 0
+        self.rect.update(self.x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, self.y * REL_SCALE +
+                         POFFSET_Y - pcoord[1] * REL_SCALE, self.rect.width, self.rect.height)
+        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+            if not self.dynamic:
+                if (self.x + self.w // 2 - 32 < pcoord[0] < self.x + self.w and (not(pcoord[1] + 30 < self.y) and
+                                                                                 not(pcoord[1] > self.y + self.h - 2))):
+                    scene.player.coords[0] = self.x + self.w
+                    scene.player.vel[0] = 0
+                elif self.x + self.w // 2 > pcoord[0] + 32 > self.x and (not(pcoord[1] + 30 < self.y)
+                                                                         and not(pcoord[1] > self.y + self.h - 2)):
+                    scene.player.coords[0] = self.x - 32
+                    scene.player.vel[0] = 0
+                elif self.y + self.h // 2 - 32 < pcoord[1] < self.y + self.h:
+                    scene.player.coords[1] = self.y + self.h
+                    scene.player.vel[1] = 0
+                elif self.y + self.h // 2 > pcoord[1] + 32 > self.y:
+                    scene.player.coords[1] = self.y - 32
+                    scene.player.vel[1] = 0
+            else:
+                if (self.x + self.w // 2 - 32 < pcoord[0] < self.x + self.w and (not(pcoord[1] + 30 < self.y) and
+                                                                                 not(pcoord[1] > self.y + self.h - 2))):
+                    self.direction = 0
+                    self.vel = scene.player.sl * self.drag
+                    if self.drag < 1:
+                        scene.player.vel[0] *= self.drag
+                elif self.x + self.w // 2 > pcoord[0] + 32 > self.x and (not(pcoord[1] + 30 < self.y)
+                                                                         and not(pcoord[1] > self.y + self.h - 2)):
+                    self.direction = 1
+                    self.vel = scene.player.sl * self.drag
+                    if self.drag < 1:
+                        scene.player.vel[0] *= self.drag
+                elif self.y + self.h // 2 - 32 < pcoord[1] < self.y + self.h:
+                    self.direction = 2
+                    self.vel = scene.player.sl * self.drag
+                    if self.drag < 1:
+                        scene.player.vel[1] *= self.drag
+                elif self.y + self.h // 2 > pcoord[1] + 32 > self.y:
+                    self.direction = 3
+                    self.vel = scene.player.sl * self.drag
+                    if self.drag < 1:
+                        scene.player.vel[1] *= self.drag
+
+
+class SceneCollision(pygame.sprite.Sprite):
+    def __init__(self, x, y, w, h, *ccg):
+        super().__init__(*ccg)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X, y * REL_SCALE + POFFSET_Y, REL_SCALE * w, REL_SCALE * h)
+        self.image = pygame.Surface((self.rect.width, self.rect.height))
+        pygame.draw.rect(self.image, '#5a5a5a', self.rect)
+
+    def update(self, pcoord, scene, *args, **kwargs):
+        self.rect.update(self.x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, self.y * REL_SCALE +
+                         POFFSET_Y - pcoord[1] * REL_SCALE, self.rect.width, self.rect.height)
+        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+            if (self.x + self.w // 2 - 32 < pcoord[0] < self.x + self.w and (not(pcoord[1] + 30 < self.y) and not(
+                    pcoord[1] > self.y + self.h - 2))):
+                scene.player.coords[0] = self.x + self.w
+                scene.player.vel[0] = 0
+            elif self.x + self.w // 2 > pcoord[0] + 32 > self.x and (not(pcoord[1] + 30 < self.y) and
+                                                                     not(pcoord[1] > self.y + self.h - 2)):
+                scene.player.coords[0] = self.x - 32
+                scene.player.vel[0] = 0
+            elif self.y + self.h // 2 - 32 < pcoord[1] < self.y + self.h:
+                scene.player.coords[1] = self.y + self.h
+                scene.player.vel[1] = 0
+            elif self.y + self.h // 2 > pcoord[1] + 32 > self.y:
+                scene.player.coords[1] = self.y - 32
+                scene.player.vel[1] = 0
+
+
 class CharSpritemap:
     m0g, m1g, m2g = pygame.sprite.Group(), pygame.sprite.Group(), pygame.sprite.Group()
     PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_0.png', X_CENTER, Y_CENTER, m0g)
-    PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_0_w0.png', X_CENTER, Y_CENTER, m0g)
+    # PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_0_w0.png', X_CENTER, Y_CENTER, m0g)
     PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_run_0.png', X_CENTER, Y_CENTER, m1g)
     PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_dead_0.png', X_CENTER, Y_CENTER, m2g)
-    PlayerRotatableFramedSprite(r'game\char\bkiss\cla_bkiss_sprite_run_0_w0.png', 2, 1, X_CENTER, Y_CENTER, 6, m1g)
+    # PlayerRotatableFramedSprite(r'game\char\bkiss\cla_bkiss_sprite_run_0_w0.png', 2, 1, X_CENTER, Y_CENTER, 5, m1g)
+    ldir = os.listdir(r'gamedata\img\game\char\bkiss')
+    m0wg, m1wg = [], []
+    for _ in list(filter(lambda x: 'sprite_0_w' in x, sorted(ldir))):
+        locgr = pygame.sprite.Group()
+        PlayerRotatableSprite(r'game\char\bkiss\ '[:-1] + _, X_CENTER, Y_CENTER, locgr)
+        m0wg.append(locgr)
+    for _ in list(filter(lambda x: 'sprite_run_0_w' in x, sorted(ldir))):
+        locgr = pygame.sprite.Group()
+        PlayerRotatableFramedSprite(r'game\char\bkiss\ '[:-1] + _, 2, 1, X_CENTER, Y_CENTER, 5, locgr)
+        m1wg.append(locgr)
 
     def __init__(self):
         self.sgs = [CharSpritemap.m0g, CharSpritemap.m1g, CharSpritemap.m2g]
+        self.wsgs = [CharSpritemap.m0wg, CharSpritemap.m1wg]
 
-    def render(self, screen, status, deg):
+    def render(self, screen, status, deg, weap):
+        if status != 2:
+            try:
+                self.wsgs[status][weap].update(deg)
+                self.wsgs[status][weap].draw(screen)
+            except IndexError:
+                self.wsgs[0][0].update(deg)
+                self.wsgs[0][0].draw(screen)
         try:
             self.sgs[status].update(deg)
             self.sgs[status].draw(screen)
@@ -618,21 +926,24 @@ class Player:
 
     def __init__(self):
         self.char_spritemap = CharSpritemap()
+        # space positioning properties
         self.orient = (0, 0)
         self.deg = 0
         self.coords = [0, 0]
         self.vel = [0, 0]  # velocities / скорости (0=down,1=right)
-        self.acc = 480  # acceleration, in pix/sec
+        self.acc = 720  # acceleration, in pix/sec
         self.decc = 960  # deceleration, in pix/sec
         self.sl = 240  # speed limit, in pix/sec
-        self.clip = None
+        # collision
+        self.clip = PlayerClip(self.coords)
+        # current data
         self.weap = 0
         self.status = 0
-        self.cf = False  # cycle flag; represents one event cycle
-        self.orient_l = []
+        self.did_died = False
+        self.interact_request = False
         self.timedelta = pygame.time.Clock()
 
-    def proc_evt(self, keys, *event):
+    def proc_evt(self, keys):
         if self.status != 2:
             if keys:
                 self.calc_orient(keys)
@@ -644,45 +955,58 @@ class Player:
                 if self.orient != (0, 0):
                     self.status = 1
 
+    def interaction_proc(self, event):
+        if self.interact_request:
+            self.interact_request = False
+        if event.key == pygame.K_e:
+            self.interact_request = True
+
+    def weap_exchange(self, weap_new):
+        weap_old = self.weap
+        self.weap = weap_new
+        WEAP_PICKUP.play()
+        return weap_old
+
     def calc_orient(self, keys):
-            if keys[pygame.K_w] or keys[pygame.K_UP]:
-                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                    self.set_orient((1, -1))
-                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                    self.set_orient((-1, -1))
-                else:
-                    self.set_orient((0, -1))
-            elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                    self.set_orient((1, 1))
-                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                    self.set_orient((-1, 1))
-                else:
-                    self.set_orient((0, 1))
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                self.set_orient((-1, -1))
+            elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                self.set_orient((1, -1))
             else:
-                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                    self.set_orient((1, 0))
-                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                    self.set_orient((-1, 0))
-                else:
-                    self.set_orient((0, 0))
+                self.set_orient((0, -1))
+        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                self.set_orient((-1, 1))
+            elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                self.set_orient((1, 1))
+            else:
+                self.set_orient((0, 1))
+        else:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                self.set_orient((-1, 0))
+            elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                self.set_orient((1, 0))
+            else:
+                self.set_orient((0, 0))
 
     def move(self):
+        print(self.coords)
         td = self.timedelta.tick() / 1000
         # reducing diagonal speed
-        self.coords[0] += self.vel[0] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
+        self.coords[0] -= self.vel[0] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
                                                     or self.orient[1] != 0 and self.orient[0] == 0) else 0.71)
-        self.coords[1] += self.vel[1] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
+        self.coords[1] -= self.vel[1] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
                                                     or self.orient[1] != 0 and self.orient[0] == 0) else 0.71)
         if self.orient[0] != 0:
-            if self.orient[0] == 1:
+            if self.orient[0] == -1:
                 if self.vel[0] + self.acc * td <= self.sl:
-                    self.vel[0] += self.acc * self.orient[0] * td
+                    self.vel[0] += self.acc * td
                 else:
                     self.vel[0] = self.sl
             else:
-                if self.vel[0] + self.acc * td >= -self.sl:
-                    self.vel[0] += self.acc * self.orient[0] * td
+                if self.vel[0] - self.acc * td >= -self.sl:
+                    self.vel[0] -= self.acc * td
                 else:
                     self.vel[0] = -self.sl
         else:
@@ -697,14 +1021,14 @@ class Player:
                 else:
                     self.vel[0] = 0
         if self.orient[1] != 0:
-            if self.orient[1] == 1:
+            if self.orient[1] == -1:
                 if self.vel[1] + self.acc * td <= self.sl:
-                    self.vel[1] += self.acc * -self.orient[1] * td
+                    self.vel[1] += self.acc * td
                 else:
                     self.vel[1] = self.sl
             else:
-                if self.vel[1] + self.acc * td >= -self.sl:
-                    self.vel[1] += self.acc * -self.orient[1] * td
+                if self.vel[1] - self.acc * td >= -self.sl:
+                    self.vel[1] -= self.acc * td
                 else:
                     self.vel[1] = -self.sl
         else:
@@ -718,6 +1042,13 @@ class Player:
                     self.vel[1] -= self.decc * td
                 else:
                     self.vel[1] = 0
+        if self.coords[0] < 0:
+            self.coords[0] = 0
+            self.vel[0] = 0
+        if self.coords[1] < 0:
+            self.coords[1] = 0
+            self.vel[1] = 0
+        self.clip.update(self.coords)
 
     def set_orient(self, orient):
         if orient != (0, 0) or orient != self.orient:
@@ -728,7 +1059,7 @@ class Player:
                 pass
 
     def render(self, screen):
-        self.char_spritemap.render(screen, self.status, self.deg)
+        self.char_spritemap.render(screen, self.status, self.deg, self.weap)
 
 
 class BaseScene:  # scene class base: just a holder for scene content
@@ -746,6 +1077,8 @@ class BaseScene:  # scene class base: just a holder for scene content
         self.sgroup = pygame.sprite.Group()  # s - спрайт
         self.entgroup = pygame.sprite.Group()  # ent - сущность (будь то NPC (враг) или окошко-тумбочка-кровать)
 
+        self.music = None
+
         self.catcher = None  # catching prompt (while scenemode = 1)
         self.prior_uig = None  # UI group to render
 
@@ -754,6 +1087,12 @@ class BaseScene:  # scene class base: just a holder for scene content
                 f'\n{self.entgroup}\nscene_mode={self.scene_mode}\ncatcher={self.catcher}')
 
     # 'adders' / 'добавители' (добавлять элементы в контейнеры для объектов сцены)
+
+    def set_music(self, name):
+        if name:
+            mp = os.path.join(r'gamedata\aud\mus', name)
+            if os.path.isfile(mp):
+                self.music = mp
 
     def add_img(self, *imgs):  # add as many imgs as you want (1-"8 rotated by 90 degrees lol")
         for _ in imgs:
@@ -800,7 +1139,8 @@ class BaseScene:  # scene class base: just a holder for scene content
         self.get_prior().show()
 
     def unset_prior(self):
-        self.get_prior().hide()
+        if self.prior_uig:
+            self.get_prior().hide()
         self.prior_uig = None
         UI_ESCAPE.play()
 
@@ -838,7 +1178,7 @@ class BaseScene:  # scene class base: just a holder for scene content
                         game_destroyer()
         elif self.scene_mode == 1:
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.key == 13:
+                if event.key == pygame.K_ESCAPE or event.key == 13 or event.key == pygame.K_TAB:
                     self.scene_mode = 0
                     self.catcher.catching(event, True)
                 else:
@@ -874,20 +1214,33 @@ class GameScene(BaseScene):
     pmenu_exit = PushBtn('UI_BTN_PMENU_E', BASELOCALE, X_CENTER - 200, Y_CENTER + 50, w=400, txt='pmenu_exit')
     pausemenu = UIGroup('UIG_PAUSE')
     pausemenu.add_elem(pmenu_txt, pmenu_resume, pmenu_exit)
+    dmenu_txt = UIText('UI_TXT_DMENU', BASELOCALE, X_CENTER, Y_CENTER // 2, txt='dmenu_txt', font=FONT_1)
+    dmenu_restart = PushBtn('UI_BTN_DMENU_R', BASELOCALE, X_CENTER - 225, Y_CENTER - 50, w=450, txt='dmenu_restart')
+    deathmenu = UIGroup('UIG_DEATH')
+    deathmenu.add_elem(dmenu_txt, dmenu_restart, pmenu_exit)
+    itempck = UIText('UI_TXT_IPCK', None, X_CENTER, 100)
+    # itempck.recolor('col_txt', '#d8d8ff')
+    bg = ParallaxImage('BG', r'game\scene\BG_Sky.png', tw=Y_SFAC * 1.25, th=Y_SFAC * 1.25)
 
-    def __init__(self, mmenu):
+    def __init__(self):
         super().__init__()
-        self.mmenu = mmenu
-        self.add_uie(GameScene.pausemenu)
+        self.add_uie(GameScene.pausemenu, GameScene.deathmenu)
         self.get_uie('UIG_PAUSE').get_elem('UI_BTN_PMENU_R').set_func(self.unpause)
+        self.add_uie(GameScene.itempck)
+        self.add_img(GameScene.bg)
         self.dial_sequences = {}  # 'dialog sequences'
         self.dial = None
         self.player = Player()
+        self.trigs, self.items, self.props, self.sclips = (pygame.sprite.Group(), pygame.sprite.Group(),
+                                                           pygame.sprite.Group(), pygame.sprite.Group())
+
 
     def set_holder(self, hld):
         super().set_holder(hld)
         if self.holder:
             self.get_uie('UIG_PAUSE').get_elem('UI_BTN_PMENU_E').set_func(self.holder.swto_defscene)
+            self.get_uie('UIG_DEATH').get_elem('UI_BTN_PMENU_E').set_func(self.holder.swto_defscene)
+            self.get_uie('UIG_DEATH').get_elem('UI_BTN_DMENU_R').set_func(self.holder.swto_defscene)
 
     def add_dsq(self, *dsqs):
         for _ in dsqs:
@@ -914,12 +1267,16 @@ class GameScene(BaseScene):
         for _ in self.imghld.values():
             if _.do_render:
                 if isinstance(_, PlayerOffsetImage):
-                    _.render(screen, -self.player.coords[0], -self.player.coords[1])
+                    _.render(screen, self.player.coords[0], self.player.coords[1])
                 else:
                     _.render(screen, self.para_l[0], self.para_l[1])
         # rendering and moving independent sprites
         self.sgroup.draw(screen)
         self.sgroup.update()
+        self.trigs.draw(screen)  # test
+        self.items.draw(screen)
+        self.props.draw(screen)
+        self.sclips.draw(screen)
         # rendering UIEs
         for _ in self.uihld.values():
             if _.do_render:
@@ -940,13 +1297,13 @@ class GameScene(BaseScene):
 
     def proc_evt(self, event, **kwargs):
         self.get_para(event)
-        self.player.proc_evt(None, event)
         if self.scene_mode == 0:
             if event.type == pygame.MOUSEMOTION or event.type == pygame.MOUSEBUTTONUP:
                 self.ui_validator(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self.ui_validator(event, True)
             elif event.type == pygame.KEYDOWN:
+                self.player.interaction_proc(event)
                 if event.key == pygame.K_ESCAPE:
                     if self.prior_uig:
                         self.unset_prior()
@@ -974,6 +1331,23 @@ class GameScene(BaseScene):
     def const_update(self, keys):
         if self.scene_mode == 0:
             self.player.proc_evt(keys)
+            if self.player.status == 2 and not self.player.did_died:
+                if self.player.weap != 0:
+                    self.items.add(DropWeap(self.player.coords[0] + (random() - 0.5) * 64, self.player.coords[1] +
+                                      (random() - 0.5) * 64, self.player.weap))
+                self.set_prior('UIG_DEATH')
+                self.player.did_died = True
+            self.trigs.update(self.player.coords, self)
+            self.items.update(self.player.coords, self)
+            self.props.update(self.player.coords, self)
+            self.sclips.update(self.player.coords, self)
+            self.player.interact_request = False
+
+    def save_state(self):
+        pass
+
+    def load_state(self):
+        pass
 
 
 class SceneHolder:
@@ -1013,31 +1387,28 @@ class SceneHolder:
         self.scene = scene_new
         if self.scene:
             self.scene.set_holder(self)
+            self.music_play()
         self.fade_timer = 0
         self.no_event = True
 
     def set_defscene(self, ds):
         self.defscene = ds
+        self.music_play()
 
     def swto_defscene(self):
         self.switch_scene(self.defscene)
+
+    def music_play(self):
+        if self.scene.music:
+            pygame.mixer.music.load(self.scene.music)
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.fadeout(10000)
 
 
 # ^^^ SCENE CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ СЦЕНЫ)
 # ------------------------------------------------------------
 # \/ \/ \/ MAIN GAME LOOP AREA START (НАЧАЛО ЗОНЫ РАБОТЫ ИГРЫ)
-
-
-def cla_mainmenu_draw(screen, xoffset=0, yoffset=0):  # REMOVE LATER
-    doomerochek = pygame.image.load(r'doomkisser_V2_s.png').convert()
-    doomerochek = pygame.transform.scale(doomerochek, (510, 510))
-    screen.blit(doomerochek, (0, 0))
-    font = pygame.font.Font(None, 35)
-    text = font.render("Cold Line :: Arkhangelsk (Dev-alpha)", False, '#CACAEF')
-    screen.blit(text, (500 - text.get_width() - (500 - text.get_width()) / 2 - xoffset * 2, 50 - yoffset * 3))
-    font = pygame.font.Font(None, 20)
-    text = font.render("imagine good working main menu here", False, '#DDDDDD')
-    screen.blit(text, (500 - text.get_width() - (500 - text.get_width()) / 2, 75))
 
 
 def mmenu_imgs_init():
@@ -1071,9 +1442,6 @@ def mmenu_obj_init():
     # exit game button setup
     killgamebtn = PushBtn('UI_BTN_KILLGAME', BASELOCALE, x=X_CENTER - 100, y=Y_CENTER + 256, txt="mmenu_killgame")
     killgamebtn.set_func(game_destroyer)
-    # TEST button setup
-    testbtn = PushBtn('UI_BTN_BKISS_BTN', BASELOCALE, w=450, x=X_CENTER - 225, y=Y_CENTER + 128, txt="mmenu_roflo")
-    testbtn.set_func(doomkisser_enabler)
     # saveload window button setup
     savebtn = PushBtn('UI_BTN_SAVELOAD', BASELOCALE, w=450, x=X_CENTER - 225, y=Y_CENTER + 28, txt="mmenu_saveloadgame")
     savebtn.set_func(mmenu_group_switch)
@@ -1082,54 +1450,33 @@ def mmenu_obj_init():
     locbtn = PushBtn('UI_BTN_LOC', BASELOCALE, w=50, x=SCREENRES.current_w - 75, y=SCREENRES.current_h - 75,
                      txt='mmenu_loc')
     locbtn.set_func(mmenu_locsw)
-    mmenu.add_uie(killgamebtn, testbtn, savebtn, sgbtn, locbtn, mmenu_loadgame_group_init(), mmenu_sgame_group_init())
+    mmenu.add_uie(killgamebtn, savebtn, sgbtn, locbtn, SaveloadMenu('UIG_SL'), mmenu_sgame_group_init())
+    mmenu.set_music('dymyat_molcha.mp3')
     for _ in range(10):
         mmenu.add_s(SnowflakeSprite)
-    nmenu = BaseScene()  # multiscene game test remove it later!!!!!!!
-    nmenu.add_uie(testbtn)
-    return mmenu, nmenu
-
-
-def mmenu_loadgame_group_init():
-    canvas = UICanvas('CANVAS', h=700, w=800, x=X_CENTER - 400, y=Y_CENTER - 350)
-    testprompt = UIText('UI_TXT_TEST', False, h=1, w=100, x=500, y=500, txt='testprompt')
-    prpt_0 = TextPrompt('UI_PRPT_TEST', h=50, w=100, x=X_CENTER - 390, y=Y_CENTER - 340)
-    testgrp = UIGroup('UIG_TEST')
-    testgrp.add_elem(canvas, testprompt, prpt_0)
-    return testgrp
+    return mmenu
 
 
 def mmenu_sgame_group_init():
     sgtxt = UIText('UI_NGAME_TXT', BASELOCALE, x=X_CENTER, y=Y_CENTER - 100, txt='mmenu_sgame_n', font=FONT_1)
+    sgtxt_e = UIText('UI_NGAME_E', BASELOCALE, x=X_CENTER, y=Y_CENTER - 25, txt='n', font=FONT_1)
+    sgtxt_e.recolor('col_txt', 'red')
     sgtxt.recolor('col_txt', '#FFFFFF')
     sgprpt = TextPrompt('UI_NGAME_PRPT', h=50, w=250, x=X_CENTER - 125, y=Y_CENTER)
     sgrp = UIGroup('UIG_SGAME')
     sgbtn = PushBtn('UI_SGAME_BTN', BASELOCALE, h=50, w=250, x=X_CENTER - 125, y=Y_CENTER + 60, txt='mmenu_sgame_s')
     sgbtn.set_func(mmenu_sgame)
-    sgrp.add_elem(sgtxt, sgprpt, sgbtn)
+    sgrp.add_elem(sgtxt, sgprpt, sgbtn, sgtxt_e)
     return sgrp
 
 
-def music_controller():
-    pygame.mixer.music.stop()
-    pygame.mixer.music.play(start=1.8)
-    return 1800
-
-
-def game_destroyer():  # MAYBE FOR BUTTONS TEST
+def game_destroyer():
     global GAME_RUNNING
     GAME_RUNNING = False
 
 
-def doomkisser_enabler():  # FOR BUTTONS TEST
-    global do_render_pasxalko
-    do_render_pasxalko = not do_render_pasxalko
-    pygame.mixer.music.fadeout(5000)
-    sceneslot.switch_scene(nmenu)
-
-
 def mmenu_group_switch():
-    mmenu.set_prior(mmenu.get_uie('UIG_TEST').name)
+    mmenu.set_prior(mmenu.get_uie('UIG_SL').name)
 
 
 def mmenu_sgame_g_switch():
@@ -1138,9 +1485,15 @@ def mmenu_sgame_g_switch():
 
 def mmenu_sgame():
     sname = mmenu.get_prior().get_elem('UI_NGAME_PRPT').take_txt()
-    print(sname)
-    # пиши код базы данных сдеся
-    sceneslot.switch_scene(gscene_init())
+    if sname.strip():
+        msg = db_executor(0, sname.lower())
+        if msg:
+            mmenu.get_prior().get_elem('UI_NGAME_E').set_txt(msg)
+        else:
+            mmenu.get_prior().get_elem('UI_NGAME_E').set_txt('n')
+            sceneslot.switch_scene(gscene_init())
+    else:
+        mmenu.get_prior().get_elem('UI_NGAME_E').set_txt('mmenu_sgame_e_e')
 
 
 def mmenu_locsw():
@@ -1149,24 +1502,36 @@ def mmenu_locsw():
 
 
 def gscene_init():
+    def death_event(scene):
+        scene.player.status = 2
+        DEATH_SND.play()
+
+    def retranslate_event(scene):
+        scene.holder.swto_defscene()
+
     global mmenu
-    scene = GameScene(mmenu)
-    scene.add_img(PlayerOffsetImage('SCENE', r'game\scene\1-335as.jpg', tw=Y_SFAC * 4, th=Y_SFAC * 4))
+    scene = GameScene()
+    scene.set_music('kletka_cut.wav')
+    scene.add_img(PlayerOffsetImage('SCENE', r'game\scene\Lvl_0_LO.png'))
     scene.add_dsq(DialSeq('lvl_0_0'))
+    scene.trigs.add(TriggerClip(256, 256, 128, 128, death_event, True))
+    scene.trigs.add(TriggerClip(512, 512, 128, 128, retranslate_event, True))
+    scene.items.add(DropWeap(0, 64, 1))
+    scene.items.add(DropWeap(128, 64, 1))
+    scene.props.add(Prop(512, 128, 24, 20, r'game\props\tumbochka_0.png'))
+    scene.props.add(Prop(512, 256, 24, 20, r'game\props\tumbochka_0.png', True, 0.5))
+    scene.sclips.add(SceneCollision(337, 125, 53, 54))
+    scene.sclips.add(SceneCollision(5, 46, 182, 7))
     scene.start_dial('lvl_0_0')
     return scene
 
 
 if __name__ == '__main__':
     GAME_RUNNING = True
-    do_render_pasxalko = False  # VERY TEST
-    mmenu, nmenu = mmenu_obj_init()
+    mmenu = mmenu_obj_init()
     sceneslot = SceneHolder(mmenu)
     sceneslot.set_defscene(mmenu)
-    dtime = 0  # costill
     while GAME_RUNNING:
-        if (mtimer.get_ticks() + dtime) % 170000 >= 169995:  # nowayroyatnee costill (subject to be removed)
-            dtime += music_controller()
         sceneslot.const_parser(pygame.key.get_pressed())
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -1174,6 +1539,4 @@ if __name__ == '__main__':
             else:
                 sceneslot.event_parser(event)
         sceneslot.render(screen)
-        if do_render_pasxalko:
-            cla_mainmenu_draw(screen, xoffset=0, yoffset=0)
         pygame.display.flip()
