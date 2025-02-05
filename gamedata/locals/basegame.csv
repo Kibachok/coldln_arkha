@@ -1,0 +1,22 @@
+loc_id;en;ru
+n;;
+mmenu_loc;EN;РУС
+mmenu_killgame;kill game;экзекутировать данное приложение
+mmenu_startgame;Start new game;Начать новую игру
+mmenu_saveloadgame;Open save menu (load game);Открыть меню загрузки сохранений
+mmenu_resumegame;Resume last game;Продолжить последнюю игру
+mmenu_roflo;Show a cute boykisser doomer UwU;Продемонстрировать всю увушность разработчиков данного проекта
+mmenu_sgame_s;Start game;Начать игру
+mmenu_sgame_n;New game name:;Название игры:
+mmenu_sgame_e_ae;Name already exist;Имя уже занято
+mmenu_sgame_e_ws;Wrong syntax;Некорректный ввод
+mmenu_sgame_e_e;Imput is empty;Ввод пуст
+mmenu_slmenu_label;Load game;Загрузить сохранение
+mmenu_slmenu_p;Play;Играть
+pmenu_txt;Pause;Пауза
+pmenu_resume;Resume game;Продолжить игру
+pmenu_exit;Exit to main menu;Выйти в главное меню
+dmenu_txt;Killed in action;Убит при попытке самотоятельной эвакуации
+dmenu_restart;Load last save;Загрузить последнее сохранение
+item_pckp;Pickup ;Подобрать 
+item_drop; will be dropped); будет выброшен)
