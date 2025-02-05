@@ -13,6 +13,7 @@ mmenu_sgame_e_ws;Wrong syntax;Некорректный ввод
 mmenu_sgame_e_e;Imput is empty;Ввод пуст
 mmenu_slmenu_label;Load game;Загрузить сохранение
 mmenu_slmenu_p;Play;Играть
+mmenu_slmenu_d;Delete;Удалить
 pmenu_txt;Pause;Пауза
 pmenu_resume;Resume game;Продолжить игру
 pmenu_exit;Exit to main menu;Выйти в главное меню
