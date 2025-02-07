@@ -1,10 +1,10 @@
 # DEMO WIP Build of game with main menu and some simple classes only
-import csv
 import os
-import sqlite3
-from random import randint, randrange, random
 
 import pygame
+import csv
+import sqlite3
+from random import randint, randrange, random
 
 
 def csvloader(namepath):
@@ -62,9 +62,10 @@ X_CENTER = SCREENRES.current_w // 2  # just a separate coord of screen center va
 Y_CENTER = SCREENRES.current_h // 2  # same as X_CENTER
 X_SFAC = SCREENRES.current_w // 250 / 4
 Y_SFAC = SCREENRES.current_h // 125 / 8
-REL_SCALE = Y_SFAC * 4
-POFFSET_X = X_CENTER - Y_SFAC * 64
-POFFSET_Y = Y_CENTER - Y_SFAC * 64
+REL_SCALE = Y_SFAC * 4  # relational scale for scenes
+PSCALE = 28  # player collision scale value
+POFFSET_X = X_CENTER - Y_SFAC * PSCALE * 2
+POFFSET_Y = Y_CENTER - Y_SFAC * PSCALE * 2
 print(X_SFAC, Y_SFAC)
 screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
 pygame.display.set_caption("ColdLine Arkhangelsk")
@@ -73,6 +74,10 @@ FADE_IMG = imgloader(r"ui\fade.png", -2)  # global used fade image
 FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
 DARKEN_IMG = imgloader(r"ui\darken.png", -2)  # global used darken image
 DARKEN_IMG = pygame.transform.scale(DARKEN_IMG, (SCREENRES.current_w, SCREENRES.current_h))
+
+
+def lvlreader():
+    pass
 
 
 def lvlloader():  # wip do not use | используется для загрузки уровней
@@ -86,10 +91,10 @@ def lvlsaver():
 def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games
     cs = DB.cursor()
     if type == 0:
-        if cs.execute('''SELECT savename FROM saves WHERE savename=?''', (*data,)).fetchall():
+        if cs.execute('''SELECT savename FROM saves WHERE savename=?''', (*data, )).fetchall():
             return 'mmenu_sgame_e_ae'
         try:
-            cs.execute('''INSERT INTO saves(savename, lvl) VALUES(?, 0)''', (*data,)).fetchall()
+            cs.execute('''INSERT INTO saves(savename, lvl) VALUES(?, 0)''', (*data, )).fetchall()
             DB.commit()
             return
         except sqlite3.OperationalError:
@@ -97,6 +102,13 @@ def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 =
     elif type == 1:
         try:
             return cs.execute('''SELECT savename FROM saves''').fetchall()
+        except sqlite3.OperationalError:
+            return False
+    elif type == 2:
+        try:
+            cs.execute('''DELETE FROM saves WHERE savename=?''', (*data, )).fetchall()
+            DB.commit()
+            return
         except sqlite3.OperationalError:
             return False
 
@@ -187,7 +199,6 @@ def sflake_init():
 
 class SnowflakeSprite(pygame.sprite.Sprite):  # main menu snowflake sprite / спрайт снежинки для главного меню
     sflake_list = sflake_init()  # a list of pngs for one of them being randomly selected
-
     # ^^^ список картинок снежинок, из которого одна будет выбрано случайно
 
     def __init__(self, *sgroup):
@@ -391,14 +402,21 @@ class PushBtn(UIInterElem):
     def __init__(self, name, loc, x=0, y=0, w=200, h=50, txt='', font=None):
         super().__init__(name, loc, x, y, w, h, txt, font)
         self.func = None
+        self.fpars = []
 
     def set_func(self, func):
         self.func = func
 
+    def add_fps(self, *fpars):
+        self.fpars.extend(fpars)
+
     def triggered(self):
         UI_CLICK.play()
         if self.func:
-            self.func()
+            if self.fpars:
+                self.func(self.fpars)
+            else:
+                self.func()
 
     def proc_evt(self, event, click=False):
         if self.active:
@@ -547,14 +565,20 @@ class UIGroup:
 
 class SaveloadMenu(UIGroup):
     canvas = UICanvas("CANVAS", X_CENTER - 300, Y_CENTER - 300, 600, 600)
-    namefields, btnslist = [], []
+    namefields, btnslist, dbtns = [], [], []
     for _ in range(5):
-        nf = PushBtn(f'SN_{_}', False, X_CENTER - 225, Y_CENTER - 200 + 75 * _, 225, 50, '')
+        nf = PushBtn(f'SN_{_}', False, X_CENTER - 250, Y_CENTER - 200 + 75 * _, 200, 50, '')
         nf.recolor('col_1', '#d5d5d5')
         nf.set_active(False, True)
         namefields.append(nf)
-        pb = PushBtn(f'PB_{_}', BASELOCALE, X_CENTER + 25, Y_CENTER - 200 + 75 * _, 175, 50, 'mmenu_slmenu_p')
+        pb = PushBtn(f'PB_{_}', BASELOCALE, X_CENTER - 25, Y_CENTER - 200 + 75 * _, 150, 50, 'mmenu_slmenu_p')
+        pb.set_active(False)
         btnslist.append(pb)
+        dpb = PushBtn(f'DB_{_}', BASELOCALE, X_CENTER + 150, Y_CENTER - 200 + 75 * _, 80, 50, 'mmenu_slmenu_d')
+        dpb.add_fps((_,))
+        dpb.recolor('col_txt', '#FF0000')
+        dpb.set_active(False)
+        dbtns.append(dpb)
     txt = UIText('SLTXT', BASELOCALE, X_CENTER, Y_CENTER - 225, 0, 0, 'mmenu_slmenu_label', FONT_1)
     button_prev = PushBtn('B_PREV', False, X_CENTER - 120, Y_CENTER + 225, 50, 50, '<')
     button_next = PushBtn('B_NEXT', False, X_CENTER + 75, Y_CENTER + 225, 50, 50, '>')
@@ -562,23 +586,25 @@ class SaveloadMenu(UIGroup):
     def __init__(self, name):
         super().__init__(name)
         self.page = 0
-        self.saves = self.load_saves()
+        self.saves = []
+        self.load_saves()
         self.pbtn = SaveloadMenu.button_prev
         self.nbtn = SaveloadMenu.button_next
         self.pbtn.set_func(self.page_prev)
         self.nbtn.set_func(self.page_next)
+        dbtns = SaveloadMenu.dbtns
+        for _ in dbtns:
+            _.set_func(self.del_save)
         self.add_elem(SaveloadMenu.canvas, SaveloadMenu.txt, self.pbtn, self.nbtn, *SaveloadMenu.namefields,
-                      *SaveloadMenu.btnslist)
+                      *SaveloadMenu.btnslist, *dbtns)
 
     def load_saves(self):
-        saves = db_executor(1)
-        print(saves)
-        return saves
+        self.saves = db_executor(1)
 
     def show(self):
         super().show()
         self.page = 0
-        self.saves = self.load_saves()
+        self.load_saves()
         self.set_values()
 
     def page_prev(self):
@@ -599,14 +625,23 @@ class SaveloadMenu(UIGroup):
         for _ in range(5):
             self.get_elem(f'SN_{_}').set_txt('')
             self.get_elem(f'PB_{_}').set_active(False, True)
-        if (self.page + 1) * 5 > len(self.saves):
-            for _ in range(len(self.saves) % 5):
-                self.get_elem(f'SN_{_}').set_txt(self.saves[self.page * 5 + _][0])
-                self.get_elem(f'PB_{_}').set_active(True, True)
-        else:
-            for _ in range(5):
-                self.get_elem(f'SN_{_}').set_txt(self.saves[self.page * 5 + _][0])
-                self.get_elem(f'PB_{_}').set_active(True, True)
+            self.get_elem(f'DB_{_}').set_active(False, True)
+        if self.saves:
+            if (self.page + 1) * 5 > len(self.saves):
+                for _ in range(len(self.saves) % 5):
+                    self.get_elem(f'SN_{_}').set_txt(self.saves[self.page * 5 + _][0])
+                    self.get_elem(f'PB_{_}').set_active(True, True)
+                    self.get_elem(f'DB_{_}').set_active(True, True)
+            else:
+                for _ in range(5):
+                    self.get_elem(f'SN_{_}').set_txt(self.saves[self.page * 5 + _][0])
+                    self.get_elem(f'PB_{_}').set_active(True, True)
+                    self.get_elem(f'DB_{_}').set_active(True, True)
+
+    def del_save(self, *bid):
+        db_executor(2, self.saves[self.page * 5 + bid[0][0][0]][0])
+        self.load_saves()
+        self.set_values()
 
 
 def dial_icons_init():
@@ -694,58 +729,65 @@ class DialSeq:
 class PlayerClip(pygame.sprite.Sprite):
     PCG = pygame.sprite.Group()
 
-    def __init__(self, coords=(0, 0)):
+    def __init__(self):
         super().__init__(PlayerClip.PCG)
-        self.rect = pygame.Rect(POFFSET_X + coords[0], POFFSET_Y + coords[1], REL_SCALE * 32, REL_SCALE * 32)
+        self.image = pygame.Surface((REL_SCALE * PSCALE, REL_SCALE * PSCALE), pygame.SRCALPHA, 32)
+        pygame.draw.rect(self.image, pygame.Color('green'), (0, 0, REL_SCALE * PSCALE, REL_SCALE * PSCALE), 5)
+        self.rect = pygame.Rect(POFFSET_X, POFFSET_Y, REL_SCALE * PSCALE, REL_SCALE * PSCALE)
 
 
-class TriggerClip(pygame.sprite.Sprite):
-    def __init__(self, x, y, w, h, func, once, *tcg):
-        super().__init__(*tcg)
-        self.x = x
-        self.y = y
-        self.rect = pygame.Rect(x + POFFSET_X, y + POFFSET_Y, w * REL_SCALE, h * REL_SCALE)
+class Entity(pygame.sprite.Sprite):  # base entity for scene, init it with gamescene ONLY
+    def __init__(self, pcoord, x=0, y=0, *sg):
+        super().__init__(*sg)
+        self.x, self.y = x, y
+        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, y * REL_SCALE + POFFSET_Y - pcoord[1]
+                                * REL_SCALE, REL_SCALE, REL_SCALE)
+
+    def update(self, pcoord, scene, *args, **kwargs):  # basically an "entity mover" in this specific case
+        self.rect.update(self.x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, self.y * REL_SCALE + POFFSET_Y -
+                         pcoord[1] * REL_SCALE, self.rect.width, self.rect.height)
+
+
+class TriggerClip(Entity):
+    def __init__(self, pcoord, x=0, y=0, w=0, h=0, func=None, once=False, *tcg):
+        super().__init__(pcoord, x, y, *tcg)
+        self.rect.update(self.rect.x, self.rect.y, REL_SCALE * w, REL_SCALE * h)
+        self.image = pygame.Surface((w * REL_SCALE, h * REL_SCALE), pygame.SRCALPHA, 32)
+        pygame.draw.rect(self.image, '#00ff00', (0, 0, self.rect.w, self.rect.h), 5)  # debug
         self.once = once
         self.func = func
-        self.image = pygame.Surface((w * REL_SCALE, h * REL_SCALE))
-        pygame.draw.circle(self.image, '#00FF00', (self.rect.x, self.rect.y), 128)  # debug
 
     def update(self, pcoord, scene, *args, **kwargs):
-        self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
-                         self.rect.width, self.rect.height)  # use as a reference for relational movement
+        super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
-            self.func(scene)
+            if self.func:
+                self.func(scene)
             if self.once:
                 self.kill()
 
 
-class DropItem(pygame.sprite.Sprite):
-    def __init__(self, x, y, name, img, *icg):
-        super().__init__(*icg)
+class DropItem(Entity):
+    def __init__(self, pcoord, name, img, x=0, y=0, *icg):
+        super().__init__(pcoord, x, y, *icg)
         rel32 = REL_SCALE * 32
-        self.x = x
-        self.y = y
-        self.rect = pygame.Rect(x + POFFSET_X, y + POFFSET_Y, rel32, rel32)
+        self.rect.update(self.rect.x, self.rect.y, rel32, rel32)
         self.name = name
         img = imgloader(img)
         self.image = pygame.transform.scale(img, (rel32, rel32))
 
     def update(self, pcoord, scene, *args, **kwargs):
-        self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
-                         self.rect.width, self.rect.height)
+        super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
             scene.get_uie('UI_TXT_IPCK').set_txt(f'{locgetter(BASELOCALE, 'item_pckp')}{self.name}')
         else:
             scene.get_uie('UI_TXT_IPCK').set_txt('')
 
 
-class DropWeap(pygame.sprite.Sprite):
-    def __init__(self, x, y, wid, *icg):
-        super().__init__(*icg)
+class DropWeap(Entity):
+    def __init__(self, pcoord, x=0, y=0, wid=1, *icg):
+        super().__init__(pcoord, x, y, *icg)
         rel32 = REL_SCALE * 32
-        self.x = x
-        self.y = y
-        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X, y * REL_SCALE + POFFSET_Y, rel32, rel32)
+        self.rect.update(self.rect.x, self.rect.y, rel32, rel32)
         self.wid = wid
         self.image = pygame.transform.scale(self.load_weap(), (rel32, rel32))
 
@@ -756,13 +798,12 @@ class DropWeap(pygame.sprite.Sprite):
             return imgloader(r'game\items\w_1.png')
 
     def update(self, pcoord, scene, *args, **kwargs):
-        self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
-                         self.rect.width, self.rect.height)
+        super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
             scene.get_uie('UI_TXT_IPCK').set_txt(f'{locgetter(BASELOCALE, 'item_pckp')}'
                                                  f'{locgetter(WLOCALE, 'w_' + str(self.wid))}'
-                                                 f'{(' ' + '(' + locgetter(WLOCALE, 'w_' + str(scene.player.weap))
-                                                     + locgetter(BASELOCALE, 'item_drop'))
+                                                 f'{(' ' + '(' + locgetter(WLOCALE, 'w_' + str(scene.player.weap)) 
+                                                     + locgetter(BASELOCALE, 'item_drop')) 
                                                  if scene.player.weap != 0 else ''}')
             if scene.player.interact_request:
                 self.replicate(scene.player.weap_exchange(self.wid), scene)
@@ -772,19 +813,17 @@ class DropWeap(pygame.sprite.Sprite):
 
     def replicate(self, new_weap, scene):
         if new_weap != 0:
-            self.groups()[0].add(DropWeap(scene.player.coords[0] + (random() - 0.5) * 64, scene.player.coords[1] +
-                                          (random() - 0.5) * 64, new_weap))
+            self.groups()[0].add(DropWeap(scene.player.coords, scene.player.coords[0] + (random() - 0.5) * 64,
+                                          scene.player.coords[1] + (random() - 0.5) * 64, new_weap))
 
 
-class Prop(pygame.sprite.Sprite):
-    def __init__(self, x, y, w, h, img, dynamic=False, drag=1, *mecg):
-        super().__init__(*mecg)
+class Prop(Entity):
+    def __init__(self, pcoord, img, x=0, y=0, w=0, h=0, dynamic=False, drag=1, *mecg):
+        super().__init__(pcoord, x, y, *mecg)
         rel32 = REL_SCALE * 32
-        self.x = x
-        self.y = y
         self.w = w
         self.h = h
-        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X, y * REL_SCALE + POFFSET_Y, REL_SCALE * w, REL_SCALE * h)
+        self.rect.update(self.rect.x, self.rect.y, REL_SCALE * w, REL_SCALE * h)
         img = imgloader(img)
         self.image = pygame.transform.scale(img, (rel32, rel32))
         self.dynamic = dynamic
@@ -808,79 +847,74 @@ class Prop(pygame.sprite.Sprite):
             self.vel -= self.decc * td
         else:
             self.vel = 0
-        self.rect.update(self.x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, self.y * REL_SCALE +
-                         POFFSET_Y - pcoord[1] * REL_SCALE, self.rect.width, self.rect.height)
+        super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
             if not self.dynamic:
-                if (self.x + self.w // 2 - 32 < pcoord[0] < self.x + self.w and (not (pcoord[1] + 30 < self.y) and
-                                                                                 not (pcoord[
-                                                                                          1] > self.y + self.h - 2))):
+                if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and
+                        (not(pcoord[1] + PSCALE - 2 < self.y) and not(pcoord[1] > self.y + self.h - 2))):
                     scene.player.coords[0] = self.x + self.w
                     scene.player.vel[0] = 0
-                elif self.x + self.w // 2 > pcoord[0] + 32 > self.x and (not (pcoord[1] + 30 < self.y)
-                                                                         and not (pcoord[1] > self.y + self.h - 2)):
-                    scene.player.coords[0] = self.x - 32
+                elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not(pcoord[1] + PSCALE - 2 < self.y)
+                                                                             and not(pcoord[1] > self.y + self.h - 2)):
+                    scene.player.coords[0] = self.x - PSCALE
                     scene.player.vel[0] = 0
-                elif self.y + self.h // 2 - 32 < pcoord[1] < self.y + self.h:
+                elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
                     scene.player.coords[1] = self.y + self.h
                     scene.player.vel[1] = 0
-                elif self.y + self.h // 2 > pcoord[1] + 32 > self.y:
-                    scene.player.coords[1] = self.y - 32
+                elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
+                    scene.player.coords[1] = self.y - PSCALE
                     scene.player.vel[1] = 0
             else:
-                if (self.x + self.w // 2 - 32 < pcoord[0] < self.x + self.w and (not (pcoord[1] + 30 < self.y) and
-                                                                                 not (pcoord[
-                                                                                          1] > self.y + self.h - 2))):
+                if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and
+                        (not (pcoord[1] + PSCALE - 2 < self.y) and not (pcoord[1] > self.y + self.h - 2))):
                     self.direction = 0
                     self.vel = scene.player.sl * self.drag
                     if self.drag < 1:
                         scene.player.vel[0] *= self.drag
-                elif self.x + self.w // 2 > pcoord[0] + 32 > self.x and (not (pcoord[1] + 30 < self.y)
-                                                                         and not (pcoord[1] > self.y + self.h - 2)):
+                elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not (pcoord[1] + PSCALE - 2 < self.y)
+                                                                             and not (pcoord[1] > self.y + self.h - 2)):
                     self.direction = 1
                     self.vel = scene.player.sl * self.drag
                     if self.drag < 1:
                         scene.player.vel[0] *= self.drag
-                elif self.y + self.h // 2 - 32 < pcoord[1] < self.y + self.h:
+                elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
                     self.direction = 2
                     self.vel = scene.player.sl * self.drag
                     if self.drag < 1:
                         scene.player.vel[1] *= self.drag
-                elif self.y + self.h // 2 > pcoord[1] + 32 > self.y:
+                elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
                     self.direction = 3
                     self.vel = scene.player.sl * self.drag
                     if self.drag < 1:
                         scene.player.vel[1] *= self.drag
 
 
-class SceneCollision(pygame.sprite.Sprite):
-    def __init__(self, x, y, w, h, *ccg):
-        super().__init__(*ccg)
-        self.x = x
-        self.y = y
+class SceneCollision(Entity):
+    def __init__(self, pcoord, x=0, y=0, w=0, h=0, *ccg):
+        super().__init__(pcoord, x, y, *ccg)
         self.w = w
         self.h = h
-        self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X, y * REL_SCALE + POFFSET_Y, REL_SCALE * w, REL_SCALE * h)
+        self.rect.update(self.rect.x, self.rect.y, REL_SCALE * w, REL_SCALE * h)
         self.image = pygame.Surface((self.rect.width, self.rect.height))
         pygame.draw.rect(self.image, '#5a5a5a', self.rect)
 
     def update(self, pcoord, scene, *args, **kwargs):
-        self.rect.update(self.x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, self.y * REL_SCALE +
-                         POFFSET_Y - pcoord[1] * REL_SCALE, self.rect.width, self.rect.height)
+        super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
-            if (self.x + self.w // 2 - 32 < pcoord[0] < self.x + self.w and (not (pcoord[1] + 30 < self.y) and not (
-                    pcoord[1] > self.y + self.h - 2))):
+            if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and (not(pcoord[1] + PSCALE - 2 < self.y)
+                                                                                 and not(pcoord[1] > self.y
+                                                                                         + self.h - 2))):
                 scene.player.coords[0] = self.x + self.w
                 scene.player.vel[0] = 0
-            elif self.x + self.w // 2 > pcoord[0] + 32 > self.x and (not (pcoord[1] + 30 < self.y) and
-                                                                     not (pcoord[1] > self.y + self.h - 2)):
-                scene.player.coords[0] = self.x - 32
+            elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not(pcoord[1] + PSCALE - 2 < self.y) and not(
+                    pcoord[1] > self.y + self.h - 2)):
+                scene.player.coords[0] = self.x - PSCALE
                 scene.player.vel[0] = 0
-            elif self.y + self.h // 2 - 32 < pcoord[1] < self.y + self.h:
+            elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
                 scene.player.coords[1] = self.y + self.h
                 scene.player.vel[1] = 0
-            elif self.y + self.h // 2 > pcoord[1] + 32 > self.y:
-                scene.player.coords[1] = self.y - 32
+            elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
+                scene.player.coords[1] = self.y - PSCALE
                 scene.player.vel[1] = 0
 
 
@@ -925,25 +959,25 @@ class CharSpritemap:
 class Player:
     orients = {(0, -1): 0, (1, -1): 1, (1, 0): 2, (1, 1): 3, (0, 1): 4, (-1, 1): 5, (-1, 0): 6, (-1, -1): 7}
 
-    def __init__(self):
-        self.atc = 0
+    def __init__(self, startpos):
         self.char_spritemap = CharSpritemap()
         # space positioning properties
         self.orient = (0, 0)
         self.deg = 0
-        self.coords = [0, 0]
+        self.coords = startpos
         self.vel = [0, 0]  # velocities / скорости (0=down,1=right)
         self.acc = 720  # acceleration, in pix/sec
         self.decc = 960  # deceleration, in pix/sec
         self.sl = 240  # speed limit, in pix/sec
         # collision
-        self.clip = PlayerClip(self.coords)
+        self.clip = PlayerClip()
         # current data
         self.weap = 0
         self.status = 0
         self.did_died = False
         self.interact_request = False
         self.timedelta = pygame.time.Clock()
+        self.d_td = 0  # means debug timedelta
 
     def proc_evt(self, keys):
         if self.status != 2:
@@ -993,8 +1027,12 @@ class Player:
                 self.set_orient((0, 0))
 
     def move(self):
-        print(self.coords)
         td = self.timedelta.tick() / 1000
+        self.d_td += td
+        # coord debug
+        if self.d_td > 5:
+            self.d_td %= 5
+            print(self.coords)
         # reducing diagonal speed
         self.coords[0] -= self.vel[0] * td * (1 if (self.orient[0] != 0 and self.orient[1] == 0
                                                     or self.orient[1] != 0 and self.orient[0] == 0) else 0.71)
@@ -1062,17 +1100,9 @@ class Player:
 
     def render(self, screen):
         self.char_spritemap.render(screen, self.status, self.deg, self.weap)
-        if self.atc:
-            if self.attack() == 0:
-                pygame.draw.rect(screen, (255, 0, 0), (10, 10, 25, 25), 0)
-            if self.attack() == 1:
-                pygame.draw.rect(screen, (255, 0, 0), (10, 10, 100, 100), 0)
 
-    def attack(self):
-        if self.weap == 0:
-            return 0
-        if self.weap == 1:
-            return 1
+    def atc(self):
+
 
 
 class BaseScene:  # scene class base: just a holder for scene content
@@ -1094,6 +1124,8 @@ class BaseScene:  # scene class base: just a holder for scene content
 
         self.catcher = None  # catching prompt (while scenemode = 1)
         self.prior_uig = None  # UI group to render
+
+        self.debug = True
 
     def __str__(self):
         return (f'{self.para_l}\n{self.imghld}\n{self.uihld}\n{self.sgroup}'
@@ -1165,11 +1197,12 @@ class BaseScene:  # scene class base: just a holder for scene content
     def ui_validator(self, event, click=False):
         if not self.prior_uig:
             for _ in self.uihld.values():
-                if issubclass(type(_), UIInterElem) or isinstance(_, UIGroup):
-                    if isinstance(_, TextPrompt) or isinstance(_, UIGroup):
-                        _.proc_evt(event, click, self.scene_mode, self)
-                    else:
-                        _.proc_evt(event, click)
+                if self.prior_uig != _.name:
+                    if issubclass(type(_), UIInterElem) or isinstance(_, UIGroup):
+                        if isinstance(_, TextPrompt) or isinstance(_, UIGroup):
+                            _.proc_evt(event, click, self.scene_mode, self)
+                        else:
+                            _.proc_evt(event, click)
         else:
             self.get_uie(self.prior_uig).proc_evt(event, click, self.scene_mode, self)
 
@@ -1182,6 +1215,8 @@ class BaseScene:  # scene class base: just a holder for scene content
             if event.type == pygame.MOUSEMOTION or event.type == pygame.MOUSEBUTTONUP:
                 self.ui_validator(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                print(self.uihld)
+                print(self.prior_uig)
                 self.ui_validator(event, True)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -1235,7 +1270,7 @@ class GameScene(BaseScene):
     # itempck.recolor('col_txt', '#d8d8ff')
     bg = ParallaxImage('BG', r'game\scene\BG_Sky.png', tw=Y_SFAC * 1.25, th=Y_SFAC * 1.25)
 
-    def __init__(self):
+    def __init__(self, startpos):
         super().__init__()
         self.add_uie(GameScene.pausemenu, GameScene.deathmenu)
         self.get_uie('UIG_PAUSE').get_elem('UI_BTN_PMENU_R').set_func(self.unpause)
@@ -1243,10 +1278,12 @@ class GameScene(BaseScene):
         self.add_img(GameScene.bg)
         self.dial_sequences = {}  # 'dialog sequences'
         self.dial = None
-        self.player = Player()
+        self.player = Player(startpos)
         self.trigs, self.items, self.props, self.sclips = (pygame.sprite.Group(), pygame.sprite.Group(),
                                                            pygame.sprite.Group(), pygame.sprite.Group())
         self.enemgroup = pygame.sprite.Group()
+        self.Pshots = pygame.sprite.Group()
+        self.enemshots = pygame.sprite.Group()
         self.enemy = TestEnemy(2000, 1000, self.enemgroup)
 
     def set_holder(self, hld):
@@ -1265,6 +1302,20 @@ class GameScene(BaseScene):
             return self.dial_sequences[name]
         except KeyError as ke:
             print(f"({ke}) ME: Missing element -- {name} not in <current scene>'s dial sequences")
+
+    def add_ent(self, *kws):
+        for _ in kws:
+            ent_type = _.pop('type')
+            if ent_type == 'TriggerClip':
+                self.trigs.add(TriggerClip(self.player.coords, **_))
+            elif ent_type == 'DropItem':
+                self.items.add(DropItem(self.player.coords, **_))
+            elif ent_type == 'DropWeap':
+                self.items.add(DropWeap(self.player.coords, **_))
+            elif ent_type == 'Prop':
+                self.props.add(Prop(self.player.coords, **_))
+            elif ent_type == 'SceneCollision':
+                self.sclips.add(SceneCollision(self.player.coords, **_))
 
     def pause(self):
         self.set_prior('UIG_PAUSE')
@@ -1287,10 +1338,9 @@ class GameScene(BaseScene):
         # rendering and moving independent sprites
         self.sgroup.draw(screen)
         self.sgroup.update()
-        self.trigs.draw(screen)  # test
+        self.enemgroup.draw(screen)
         self.items.draw(screen)
         self.props.draw(screen)
-        self.enemgroup.draw(screen)
         self.sclips.draw(screen)
         # rendering UIEs
         for _ in self.uihld.values():
@@ -1303,6 +1353,9 @@ class GameScene(BaseScene):
             self.get_uie(self.prior_uig).render(screen, (self.para_l[0], self.para_l[1]))
         if self.dial:
             self.dial.render(screen)
+        if self.debug:
+            self.trigs.draw(screen)
+            PlayerClip.PCG.draw(screen)
 
     def ui_validator(self, event, click=False):
         if self.dial:
@@ -1317,7 +1370,6 @@ class GameScene(BaseScene):
                 self.ui_validator(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self.ui_validator(event, True)
-                self.player.attack()
             elif event.type == pygame.KEYDOWN:
                 self.player.interaction_proc(event)
                 if event.key == pygame.K_ESCAPE:
@@ -1350,11 +1402,11 @@ class GameScene(BaseScene):
             if self.player.status == 2 and not self.player.did_died:
                 if self.player.weap != 0:
                     self.items.add(DropWeap(self.player.coords[0] + (random() - 0.5) * 64, self.player.coords[1] +
-                                            (random() - 0.5) * 64, self.player.weap))
+                                      (random() - 0.5) * 64, self.player.weap))
                 self.set_prior('UIG_DEATH')
                 self.player.did_died = True
-            self.enemgroup.update(self.player.coords, self)
             self.trigs.update(self.player.coords, self)
+            self.enemgroup.update(self.player.coords, self)
             self.items.update(self.player.coords, self)
             self.props.update(self.player.coords, self)
             self.sclips.update(self.player.coords, self)
@@ -1422,7 +1474,6 @@ class SceneHolder:
         else:
             pygame.mixer.music.fadeout(10000)
 
-
 class TestEnemy(pygame.sprite.Sprite):
     image = imgloader(r"hero.png")
 
@@ -1438,7 +1489,10 @@ class TestEnemy(pygame.sprite.Sprite):
     def update(self, pcoord, scene, *args, **kwargs):
         self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
                          self.rect.width, self.rect.height)
-        if pygame.sprite.spritecollideany(self,
+        if pygame.sprite.spritecollideany(self, GameScene.Pshots) or pygame.sprite.spritecollideany(self, GameScene.enemshots):
+            self.death()
+
+
 
     def death(self):
         pass
@@ -1451,6 +1505,10 @@ class Shot(pygame.sprite.Sprite):
         super().__init__(*group)
         self.image = Shot.image
         self.rect = Shot.image.get_rect()
+
+    def render(self):
+        self.image.blit(screen, self)
+        
 
 
 
@@ -1558,18 +1616,20 @@ def gscene_init():
         scene.holder.swto_defscene()
 
     global mmenu
-    scene = GameScene()
+    scene = GameScene([0, 0])
     scene.set_music('kletka_cut.wav')
     scene.add_img(PlayerOffsetImage('SCENE', r'game\scene\Lvl_0_LO.png'))
     scene.add_dsq(DialSeq('lvl_0_0'))
-    scene.trigs.add(TriggerClip(256, 256, 128, 128, death_event, True))
-    scene.trigs.add(TriggerClip(512, 512, 128, 128, retranslate_event, True))
-    scene.items.add(DropWeap(0, 64, 1))
-    scene.items.add(DropWeap(128, 64, 1))
-    scene.props.add(Prop(512, 128, 24, 20, r'game\props\tumbochka_0.png'))
-    scene.props.add(Prop(512, 256, 24, 20, r'game\props\tumbochka_0.png', True, 0.5))
-    scene.sclips.add(SceneCollision(337, 125, 53, 54))
-    scene.sclips.add(SceneCollision(5, 46, 182, 7))
+    scene.add_ent({'type': 'TriggerClip', 'x': 256, 'y': 256, 'w': 128, 'h': 128, 'func': death_event, 'once': True})
+    # scene.trigs.add(TriggerClip(256, 256, 128, 128, death_event, True))
+    # scene.trigs.add(TriggerClip(512, 512, 128, 128, retranslate_event, True))
+    scene.add_ent({'type': 'DropWeap', 'x': 0, 'y': 64, 'wid': 1})
+    scene.add_ent({'type': 'DropWeap', 'x': 128, 'y': 64, 'wid': 1})
+    scene.add_ent({'type': 'Prop', 'x': 512, 'y': 128, 'w': 24, 'h': 20, 'img': r'game\props\tumbochka_0.png'})
+    scene.add_ent({'type': 'Prop', 'x': 512, 'y': 256, 'w': 24, 'h': 20, 'img': r'game\props\tumbochka_0.png',
+                   'dynamic': True, 'drag': 0.5})
+    scene.add_ent({'type': 'SceneCollision', 'x': 337, 'y': 125, 'w': 53, 'h': 54})
+    scene.add_ent({'type': 'SceneCollision', 'x': 5, 'y': 46, 'w': 182, 'h': 7})
     scene.start_dial('lvl_0_0')
     return scene
 
