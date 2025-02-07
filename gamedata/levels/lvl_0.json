@@ -1,6 +1,6 @@
 [
   {
-	"start_coord": [0, 0],
+	"start_coord": [135, 325],
 	"music": "kletka_cut.wav",
 	"imgs":
 	  [
@@ -19,17 +19,17 @@
 	  [
 	    {
 			"type": "TriggerClip",
-			"x": 256,
-			"y": 256,
-			"w": 128,
-			"h": 128,
+			"x": 337,
+			"y": 106,
+			"w": 52,
+			"h": 19,
 			"func": "lvl_next",
 			"once": true
 		},
 	    {
 			"type": "TriggerClip",
-			"x": 0,
-			"y": 0,
+			"x": 135,
+			"y": 325,
 			"w": 128,
 			"h": 128,
 			"func": ["start_dial", 0],
@@ -37,32 +37,96 @@
 		},
 		{
 			"type": "DropWeap",
-			"y": 64,
+			"x": 140,
+			"y": 280,
 			"wid": 1
 		},
 		{
 			"type": "DropWeap",
-			"x": 128,
-			"y": 64,
+			"x": 140,
+			"y": 250,
 			"wid": 1
 		},
 		{
 			"type": "Prop",
-			"x": 512,
-			"y": 128,
+			"x": 92,
+			"y": 250,
 			"w": 24,
 			"h": 20,
 			"img": "game/props/tumbochka_0.png"
 		},
 		{
 			"type": "Prop",
-			"x": 512,
-			"y": 256,
+			"x": 100,
+			"y": 275,
 			"w": 24,
 			"h": 20,
 			"img": "game/props/tumbochka_0.png",
 			"dynamic": true,
 			"drag": 0.5
+		},
+		{
+			"type": "SceneCollision",
+			"x": 337,
+			"y": 125,
+			"w": 53,
+			"h": 53
+		},
+		{
+			"type": "SceneCollision",
+			"x": 389,
+			"y": 106,
+			"w": 40,
+			"h": 73
+		},
+		{
+			"type": "SceneCollision",
+			"x": 309,
+			"y": 126,
+			"w": 28,
+			"h": 52
+		},
+		{
+			"type": "SceneCollision",
+			"x": 312,
+			"y": 108,
+			"w": 14,
+			"h": 14
+		},
+		{
+			"type": "SceneCollision",
+			"x": 82,
+			"y": 405,
+			"w": 114,
+			"h": 7
+		},
+		{
+			"type": "SceneCollision",
+			"x": 183,
+			"y": 283,
+			"w": 3,
+			"h": 161
+		},
+		{
+			"type": "SceneCollision",
+			"x": 84,
+			"y": 243,
+			"w": 118,
+			"h": 4
+		},
+		{
+			"type": "SceneCollision",
+			"x": 183,
+			"y": 235,
+			"w": 3,
+			"h": 20
+		},
+		{
+			"type": "SceneCollision",
+			"x": 86,
+			"y": 247,
+			"w": 3,
+			"h": 165
 		}
 	  ]
   }

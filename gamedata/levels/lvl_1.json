@@ -1,13 +1,19 @@
 [
   {
 	"start_coord": [471, 1095],
-	"music": "kletka_cut.wav",
+	"music": "kino_bolny_cut.wav",
 	"imgs":
 	  [
 		  {
 		  "type": "playeroffset",
 		  "name": "SCENE",
-		  "filepath": "game/scene/Lvl_1.png"
+		  "filepath": "game/scene/Lvl_1_B.png"
+		  },
+		  {
+		  "type": "playeroffset",
+		  "name": "SCENE_OL",
+		  "filepath": "game/scene/Lvl_1_O.png",
+		  "overlay": true
 		  }
 	  ],
 	"uies": {},
