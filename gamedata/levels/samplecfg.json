@@ -7,7 +7,7 @@
 	},
 	"ents":{
 		"items": {
-			pidor_pidorass
+			broker string
 			"w_0": {"class": "weap"}
 		}
 	}
