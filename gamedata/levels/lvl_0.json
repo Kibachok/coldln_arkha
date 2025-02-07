@@ -1,0 +1,69 @@
+[
+  {
+	"start_coord": [0, 0],
+	"music": "kletka_cut.wav",
+	"imgs":
+	  [
+		  {
+		  "type": "playeroffset",
+		  "name": "SCENE",
+		  "filepath": "game/scene/Lvl_0_LO.png"
+		  }
+	  ],
+	"uies": {},
+	"dials":
+	  [
+		"lvl_0_0"
+	  ],
+	"ents":
+	  [
+	    {
+			"type": "TriggerClip",
+			"x": 256,
+			"y": 256,
+			"w": 128,
+			"h": 128,
+			"func": "lvl_next",
+			"once": true
+		},
+	    {
+			"type": "TriggerClip",
+			"x": 0,
+			"y": 0,
+			"w": 128,
+			"h": 128,
+			"func": ["start_dial", 0],
+			"once": true
+		},
+		{
+			"type": "DropWeap",
+			"y": 64,
+			"wid": 1
+		},
+		{
+			"type": "DropWeap",
+			"x": 128,
+			"y": 64,
+			"wid": 1
+		},
+		{
+			"type": "Prop",
+			"x": 512,
+			"y": 128,
+			"w": 24,
+			"h": 20,
+			"img": "game/props/tumbochka_0.png"
+		},
+		{
+			"type": "Prop",
+			"x": 512,
+			"y": 256,
+			"w": 24,
+			"h": 20,
+			"img": "game/props/tumbochka_0.png",
+			"dynamic": true,
+			"drag": 0.5
+		}
+	  ]
+  }
+]

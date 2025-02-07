@@ -1,7 +1,10 @@
 loc_id;en;ru
 n;;
+cla_exp_t;Explanation note;Пояснительная записка
+cla_exp_0;CL::A (ColdLine::Arkhangelsk) is a top-down shooter inspired by "Hotline Miami" set in North-eastern Russia,;CL::A (Колдлайн::Архангельск) - игра жанра TDS (top-down shooter, стрелялка с видом сверху),
+cla_exp_1; Arkhangelsk in particular; вдохновением послужила Hotline miami, а сама игра нещадно эксплуатирует сеттинг Северозапада РФ и Архангельска в частности
 mmenu_loc;EN;РУС
-mmenu_killgame;kill game;экзекутировать данное приложение
+mmenu_killgame;kill game;прикОНЧИТЬ игру
 mmenu_startgame;Start new game;Начать новую игру
 mmenu_saveloadgame;Open save menu (load game);Открыть меню загрузки сохранений
 mmenu_resumegame;Resume last game;Продолжить последнюю игру
