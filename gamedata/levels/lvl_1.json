@@ -1,0 +1,60 @@
+[
+  {
+	"start_coord": [471, 1095],
+	"music": "kletka_cut.wav",
+	"imgs":
+	  [
+		  {
+		  "type": "playeroffset",
+		  "name": "SCENE",
+		  "filepath": "game/scene/Lvl_1.png"
+		  }
+	  ],
+	"uies": {},
+	"dials":
+	  [
+	  ],
+	"ents":
+	  [
+	    {
+			"type": "TriggerClip",
+			"w": 1000,
+			"h": 100,
+			"func": "lvl_next",
+			"once": true
+		},
+		{
+			"type": "DropWeap",
+			"x": 471,
+			"y": 1095,
+			"wid": 1
+		},
+		{
+			"type": "SceneCollision",
+			"x": 398,
+			"y": 1057,
+			"w": 52,
+			"h": 150
+		},
+		{
+			"type": "SceneCollision",
+			"x": 40,
+			"y": 100,
+			"w": 358,
+			"h": 2064
+		},
+		{
+			"type": "SceneCollision",
+			"x": 1000,
+			"w": 16,
+			"h": 2164
+		},
+		{
+			"type": "SceneCollision",
+			"y": 2164,
+			"w": 1000,
+			"h": 16
+		}
+	  ]
+  }
+]

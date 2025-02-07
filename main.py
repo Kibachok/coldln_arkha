@@ -4,6 +4,7 @@ import os
 import pygame
 import csv
 import sqlite3
+import json
 from random import randint, randrange, random
 
 
@@ -34,33 +35,48 @@ def imgloader(localpathname, colorkey=None):  # use this to load imgs | испо
     return img
 
 
+def lvlreader():
+    lvls = []
+    for _ in os.listdir(r"gamedata\levels"):
+        with open(r'gamedata\levels\ '[:-1] + _, mode='r', encoding="utf-8") as lc:
+            try:
+                tmp = json.load(lc)
+                lvls.append(tmp)
+                print(tmp[0]["start_coord"], tmp[0]["music"], tmp[0]["imgs"], tmp[0]["uies"], tmp[0]["dials"],
+                      tmp[0]["ents"], sep='\n')
+            except json.decoder.JSONDecodeError as jde:
+                print(f'Failed to read level config: {jde}')
+    print(lvls)
+    return lvls
+
+
 # UPPERCASE = global used variable
 # global used/required commands
 pygame.init()
 pygame.mixer.init()
+
 DB = sqlite3.connect(r'savedata\savedata.sqlite3')
+LVLS = lvlreader()
 DIALS = csvloader(f'dials/dials.csv')
+
 BASELOCALE = csvloader('locals/basegame.csv')
 WLOCALE = csvloader('locals/weaps.csv')
 LOCALES = ['en', 'ru']
 CLOCALE = 'en'
-FONT_0 = pygame.font.Font(None, 35)
-FONT_0.set_bold(True)
-FONT_1 = pygame.font.Font(None, 50)
-FONT_1.set_bold(True)
-UI_PALETTE = {'col_txt': '#202020', 'col_para': '#AAAACF', 'col_koyma': '#D0D0D8', 'col_sel': '#BBBBCC',
-              'col_0': '#DFDFE8'}
+
 pygame.mixer.music.set_volume(0.8)
+
 UI_CLICK = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
 UI_ESCAPE = pygame.mixer.Sound(r"gamedata\aud\ui\menu_escape.wav")  # peaceding from tarkov
 WEAP_PICKUP = pygame.mixer.Sound(r"gamedata\aud\ui\weap_pickup.wav")  # peaceding from tarkov
 DEATH_SND = pygame.mixer.Sound(r"gamedata\aud\ui\death.wav")  # peaceding from hl2
 WALK = [pygame.mixer.Sound(r"gamedata\aud\game\walk_0.wav"), pygame.mixer.Sound(r"gamedata\aud\game\walk_1.wav"),
         pygame.mixer.Sound(r"gamedata\aud\game\walk_2.wav")]  # peaceding from tarkov
+
 SCREENRES = pygame.display.Info()  # screen resolution required for some imgs to be properly set on canvas
 X_CENTER = SCREENRES.current_w // 2  # just a separate coord of screen center value to not repeat the code
 Y_CENTER = SCREENRES.current_h // 2  # same as X_CENTER
-X_SFAC = SCREENRES.current_w // 250 / 4
+X_SFAC = SCREENRES.current_w // 125 / 8
 Y_SFAC = SCREENRES.current_h // 125 / 8
 REL_SCALE = Y_SFAC * 4  # relational scale for scenes
 PSCALE = 28  # player collision scale value
@@ -68,29 +84,88 @@ POFFSET_X = X_CENTER - Y_SFAC * PSCALE * 2
 POFFSET_Y = Y_CENTER - Y_SFAC * PSCALE * 2
 print(X_SFAC, Y_SFAC)
 screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
+
+FONT_0 = pygame.font.Font(None, 35)
+FONT_0.set_bold(True)
+FONT_1 = pygame.font.Font(None, 50)
+FONT_1.set_bold(True)
+FONT_2 = pygame.font.Font(None, int(X_SFAC * 20))
+FONT_2.set_bold(True)
+FONT_3 = pygame.font.Font(None, int(X_SFAC * 30))
+FONT_3.set_bold(True)
+
+UI_PALETTE = {'col_txt': '#202020', 'col_para': '#AAAACF', 'col_koyma': '#D0D0D8', 'col_sel': '#BBBBCC',
+              'col_0': '#DFDFE8'}
+
 pygame.display.set_caption("ColdLine Arkhangelsk")
 pygame.display.set_icon(pygame.image.load(r"doomkisser_V2_s.png"))
+
 FADE_IMG = imgloader(r"ui\fade.png", -2)  # global used fade image
 FADE_IMG = pygame.transform.scale(FADE_IMG, (SCREENRES.current_w, SCREENRES.current_h))
 DARKEN_IMG = imgloader(r"ui\darken.png", -2)  # global used darken image
 DARKEN_IMG = pygame.transform.scale(DARKEN_IMG, (SCREENRES.current_w, SCREENRES.current_h))
 
+STARTUP_CONF = csvloader('startupconfig.csv')
+try:
+    C_SAVE = STARTUP_CONF['last_save']['value']
+except KeyError:
+    C_SAVE = None
+try:
+    C_LVL = STARTUP_CONF['last_lvl']['value']
+except KeyError:
+    C_LVL = 0
 
-def lvlreader():
-    pass
 
-
-def lvlloader():  # wip do not use | используется для загрузки уровней
-    pass
+def lvlloader(lvlid, sh):  # wip do not use | используется для загрузки уровней
+    global LVLS
+    clconf = LVLS[lvlid][0]
+    LVLS = lvlreader()
+    # init part
+    try:
+        lvl = GameScene(clconf['start_coord'])
+    except KeyError:
+        print(f'Level {lvlid}: no start coords given - setting to 0, 0')
+        lvl = GameScene([0, 0])
+    lvl.set_holder(sh)
+    try:
+        lvl.set_music(clconf['music'])
+    except KeyError:
+        pass
+    try:
+        for _ in clconf['imgs']:
+            try:
+                _['filepath'] = _['filepath'].replace("/", r"\ "[:-1])
+                imgtype = _.pop('type')
+                if imgtype == 'playeroffset':
+                    lvl.add_img(PlayerOffsetImage(**_))
+                elif imgtype == 'parallax':
+                    lvl.add_img(ParallaxImage(**_))
+                else:
+                    lvl.add_img(RenderableImage(**_))
+            except KeyError:
+                print(f'Level {lvlid}: incorrect image format - rejecting it')
+    except KeyError:
+        print(f'Level {lvlid}: no images given')
+    try:
+        lvl.add_dsq(*clconf['dials'])
+    except KeyError:
+        print(f'Level {lvlid}: no dials given')
+    try:
+        for _ in clconf['ents']:
+            lvl.add_ent(_)
+    except KeyError:
+        print(f'Level {lvlid}: no entities given')
+    return lvl
 
 
 def lvlsaver():
     pass
 
 
-def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games
+def db_executor(exectype=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games
+    global C_SAVE, C_LVL
     cs = DB.cursor()
-    if type == 0:
+    if exectype == 0:
         if cs.execute('''SELECT savename FROM saves WHERE savename=?''', (*data, )).fetchall():
             return 'mmenu_sgame_e_ae'
         try:
@@ -99,18 +174,29 @@ def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 =
             return
         except sqlite3.OperationalError:
             return 'mmenu_sgame_e_ws'
-    elif type == 1:
+    elif exectype == 1:
         try:
             return cs.execute('''SELECT savename FROM saves''').fetchall()
         except sqlite3.OperationalError:
             return False
-    elif type == 2:
+    elif exectype == 2:
         try:
             cs.execute('''DELETE FROM saves WHERE savename=?''', (*data, )).fetchall()
             DB.commit()
             return
         except sqlite3.OperationalError:
             return False
+    elif exectype == 3:
+        try:
+            cs.execute('''UPDATE saves
+                            SET lvl=?
+                            WHERE savename=?''', (C_LVL, C_SAVE)).fetchall()
+        except sqlite3.OperationalError:
+            cs.execute('''INSERT INTO saves(savename, lvl) VALUES(?, ?)''', (C_LVL, C_SAVE)).fetchall()
+        DB.commit()
+    elif exectype == 4:
+        C_SAVE, C_LVL = cs.execute('''SELECT savename, lvl FROM saves WHERE savename=?''',
+                                   (*data, )).fetchall()[0]
 
 
 def locgetter(loc, key):
@@ -572,6 +658,7 @@ class SaveloadMenu(UIGroup):
         nf.set_active(False, True)
         namefields.append(nf)
         pb = PushBtn(f'PB_{_}', BASELOCALE, X_CENTER - 25, Y_CENTER - 200 + 75 * _, 150, 50, 'mmenu_slmenu_p')
+        pb.add_fps((_,))
         pb.set_active(False)
         btnslist.append(pb)
         dpb = PushBtn(f'DB_{_}', BASELOCALE, X_CENTER + 150, Y_CENTER - 200 + 75 * _, 80, 50, 'mmenu_slmenu_d')
@@ -585,6 +672,7 @@ class SaveloadMenu(UIGroup):
 
     def __init__(self, name):
         super().__init__(name)
+        self.hld = None
         self.page = 0
         self.saves = []
         self.load_saves()
@@ -592,11 +680,18 @@ class SaveloadMenu(UIGroup):
         self.nbtn = SaveloadMenu.button_next
         self.pbtn.set_func(self.page_prev)
         self.nbtn.set_func(self.page_next)
+        self.lbtns = SaveloadMenu.btnslist
+        lbtns = SaveloadMenu.btnslist
         dbtns = SaveloadMenu.dbtns
+        for _ in lbtns:
+            _.set_func(self.load_save)
         for _ in dbtns:
             _.set_func(self.del_save)
         self.add_elem(SaveloadMenu.canvas, SaveloadMenu.txt, self.pbtn, self.nbtn, *SaveloadMenu.namefields,
-                      *SaveloadMenu.btnslist, *dbtns)
+                      *lbtns, *dbtns)
+
+    def set_holder(self, hld):
+        self.hld = hld
 
     def load_saves(self):
         self.saves = db_executor(1)
@@ -643,6 +738,10 @@ class SaveloadMenu(UIGroup):
         self.load_saves()
         self.set_values()
 
+    def load_save(self, *bid):
+        db_executor(4, self.saves[self.page * 5 + bid[0][0][0]][0])
+        self.hld.lvl_load_current()
+
 
 def dial_icons_init():
     charicons = []
@@ -677,11 +776,10 @@ class DialSeq:
         self.btn_local.set_func(self.update)
 
     def __str__(self):
-        return self.d_id
+        return f'{self.d_id}, {self.scene}, {self.imgseq}'
 
     def imgetter(self):
         try:
-            print(self.imgseq)
             return DialSeq.char_imgs[self.imgseq[self.sptr]]
         except IndexError:
             try:
@@ -756,12 +854,22 @@ class TriggerClip(Entity):
         pygame.draw.rect(self.image, '#00ff00', (0, 0, self.rect.w, self.rect.h), 5)  # debug
         self.once = once
         self.func = func
+        self.func_data = []
+
+    def set_func(self, func):
+        self.func = func
+
+    def set_funcdata(self, *funcdata):
+        self.func_data.extend(*funcdata)
 
     def update(self, pcoord, scene, *args, **kwargs):
         super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
             if self.func:
-                self.func(scene)
+                if self.func_data:
+                    self.func(*self.func_data)
+                else:
+                    self.func()
             if self.once:
                 self.kill()
 
@@ -1130,12 +1238,6 @@ class BaseScene:  # scene class base: just a holder for scene content
 
     # 'adders' / 'добавители' (добавлять элементы в контейнеры для объектов сцены)
 
-    def set_music(self, name):
-        if name:
-            mp = os.path.join(r'gamedata\aud\mus', name)
-            if os.path.isfile(mp):
-                self.music = mp
-
     def add_img(self, *imgs):  # add as many imgs as you want (1-"8 rotated by 90 degrees lol")
         for _ in imgs:
             self.imghld[f'{_}'] = _
@@ -1188,6 +1290,15 @@ class BaseScene:  # scene class base: just a holder for scene content
 
     def set_holder(self, hld):
         self.holder = hld
+        for _ in self.uihld.values():
+            if isinstance(_, SaveloadMenu):
+                _.set_holder(self.holder)
+
+    def set_music(self, name):
+        if name:
+            mp = os.path.join(r'gamedata\aud\mus', name)
+            if os.path.isfile(mp):
+                self.music = mp
 
     # 'parsers' / 'парсеры' (обработчики)
 
@@ -1284,14 +1395,16 @@ class GameScene(BaseScene):
         if self.holder:
             self.get_uie('UIG_PAUSE').get_elem('UI_BTN_PMENU_E').set_func(self.holder.swto_defscene)
             self.get_uie('UIG_DEATH').get_elem('UI_BTN_PMENU_E').set_func(self.holder.swto_defscene)
-            self.get_uie('UIG_DEATH').get_elem('UI_BTN_DMENU_R').set_func(self.holder.swto_defscene)
+            self.get_uie('UIG_DEATH').get_elem('UI_BTN_DMENU_R').set_func(self.holder.lvl_reload)
 
     def add_dsq(self, *dsqs):
         for _ in dsqs:
-            self.dial_sequences[f'{_}'] = _
+            self.dial_sequences[f'{_}'] = DialSeq(_)
 
     def get_dsq(self, name):
         try:
+            print(self.dial_sequences)
+            print(name)
             return self.dial_sequences[name]
         except KeyError as ke:
             print(f"({ke}) ME: Missing element -- {name} not in <current scene>'s dial sequences")
@@ -1300,7 +1413,17 @@ class GameScene(BaseScene):
         for _ in kws:
             ent_type = _.pop('type')
             if ent_type == 'TriggerClip':
-                self.trigs.add(TriggerClip(self.player.coords, **_))
+                new_trig = TriggerClip(self.player.coords, **_)
+                try:
+                    if _["func"] == "lvl_next" or "lvl_next" in _["func"]:
+                        new_trig.set_func(self.holder.lvl_load_next)
+                    elif "start_dial" in _["func"]:
+                        if self.get_dial_by_did(_["func"][1]):
+                            new_trig.set_funcdata((self.get_dial_by_did(_["func"][1]), ))
+                            new_trig.set_func(self.start_dial)
+                except KeyError:
+                    print('No func for trigger')
+                self.trigs.add(new_trig)
             elif ent_type == 'DropItem':
                 self.items.add(DropItem(self.player.coords, **_))
             elif ent_type == 'DropWeap':
@@ -1315,6 +1438,12 @@ class GameScene(BaseScene):
 
     def unpause(self):
         self.unset_prior()
+
+    def get_dial_by_did(self, did):
+        try:
+            return list(self.dial_sequences.keys())[did]
+        except IndexError:
+            return False
 
     def start_dial(self, dial):
         self.scene_mode = 2
@@ -1413,7 +1542,8 @@ class GameScene(BaseScene):
 class SceneHolder:
     def __init__(self, scene):
         self.defscene = None
-        self.scene = scene
+        self.scene = None
+        self.switch_scene(scene)
         self.fade_timer = 0
         self.no_event = False
 
@@ -1465,6 +1595,34 @@ class SceneHolder:
         else:
             pygame.mixer.music.fadeout(10000)
 
+    def lvl_reload(self):
+        self.switch_scene(lvlloader(C_LVL, self))
+
+    def lvl_load_next(self):
+        global C_LVL
+        C_LVL += 1
+        db_executor(3)
+        try:
+            self.switch_scene(lvlloader(C_LVL, self))
+        except IndexError:
+            self.swto_defscene()
+
+    def lvl_load(self, lvlid):
+        global C_LVL
+        C_LVL = lvlid
+        db_executor(3)
+        try:
+            self.switch_scene(lvlloader(C_LVL, self))
+        except IndexError:
+            self.swto_defscene()
+
+    def lvl_load_current(self):
+        global C_LVL
+        try:
+            self.switch_scene(lvlloader(C_LVL, self))
+        except IndexError:
+            self.swto_defscene()
+
 
 # ^^^ SCENE CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ СЦЕНЫ)
 # ------------------------------------------------------------
@@ -1509,8 +1667,11 @@ def mmenu_obj_init():
     sgbtn.set_func(mmenu_sgame_g_switch)
     locbtn = PushBtn('UI_BTN_LOC', BASELOCALE, w=50, x=SCREENRES.current_w - 75, y=SCREENRES.current_h - 75,
                      txt='mmenu_loc')
+    expbtn = PushBtn('UI_BTN_EXP', False, w=50, x=25, y=SCREENRES.current_h - 75, txt='i')
     locbtn.set_func(mmenu_locsw)
-    mmenu.add_uie(killgamebtn, savebtn, sgbtn, locbtn, SaveloadMenu('UIG_SL'), mmenu_sgame_group_init())
+    expbtn.set_func(mmenu_expnote_switch)
+    mmenu.add_uie(killgamebtn, savebtn, sgbtn, locbtn, expbtn, SaveloadMenu('UIG_SL'), mmenu_sgame_group_init(),
+                  mmenu_claexp_init())
     mmenu.set_music('dymyat_molcha.mp3')
     for _ in range(10):
         mmenu.add_s(SnowflakeSprite)
@@ -1530,6 +1691,18 @@ def mmenu_sgame_group_init():
     return sgrp
 
 
+def mmenu_claexp_init():
+    txt_t = UIText('UI_CE_T', BASELOCALE, x=X_CENTER, y=160, txt='cla_exp_t', font=FONT_3)
+    txt_t.recolor('col_txt', '#BFBFFF')
+    txt_0 = UIText('UI_CE_0', BASELOCALE, x=X_CENTER, y=220, txt='cla_exp_0', font=FONT_2)
+    txt_0.recolor('col_txt', '#BFBFFF')
+    txt_1 = UIText('UI_CE_1', BASELOCALE, x=X_CENTER, y=255, txt='cla_exp_1', font=FONT_2)
+    txt_1.recolor('col_txt', '#BFBFFF')
+    grp = UIGroup('UIG_CLAEXP')
+    grp.add_elem(txt_t, txt_0, txt_1)
+    return grp
+
+
 def game_destroyer():
     global GAME_RUNNING
     GAME_RUNNING = False
@@ -1539,11 +1712,17 @@ def mmenu_group_switch():
     mmenu.set_prior(mmenu.get_uie('UIG_SL').name)
 
 
+def mmenu_expnote_switch():
+    mmenu.set_prior(mmenu.get_uie('UIG_CLAEXP').name)
+
+
 def mmenu_sgame_g_switch():
     mmenu.set_prior(mmenu.get_uie('UIG_SGAME').name)
 
 
-def mmenu_sgame():
+def mmenu_sgame():  # new game creation / создание новой игры из главменю
+    global C_LVL
+    global C_SAVE
     sname = mmenu.get_prior().get_elem('UI_NGAME_PRPT').take_txt()
     if sname.strip():
         msg = db_executor(0, sname.lower())
@@ -1551,41 +1730,16 @@ def mmenu_sgame():
             mmenu.get_prior().get_elem('UI_NGAME_E').set_txt(msg)
         else:
             mmenu.get_prior().get_elem('UI_NGAME_E').set_txt('n')
-            sceneslot.switch_scene(gscene_init())
+            C_SAVE = sname.lower()
+            C_LVL = 0
+            sceneslot.lvl_load_current()
     else:
         mmenu.get_prior().get_elem('UI_NGAME_E').set_txt('mmenu_sgame_e_e')
 
 
-def mmenu_locsw():
+def mmenu_locsw():  # locale switcher / переключатель языка
     global CLOCALE
     CLOCALE = LOCALES[(LOCALES.index(CLOCALE) + 1) % len(LOCALES)]
-
-
-def gscene_init():
-    def death_event(scene):
-        scene.player.status = 2
-        DEATH_SND.play()
-
-    def retranslate_event(scene):
-        scene.holder.swto_defscene()
-
-    global mmenu
-    scene = GameScene([0, 0])
-    scene.set_music('kletka_cut.wav')
-    scene.add_img(PlayerOffsetImage('SCENE', r'game\scene\Lvl_0_LO.png'))
-    scene.add_dsq(DialSeq('lvl_0_0'))
-    scene.add_ent({'type': 'TriggerClip', 'x': 256, 'y': 256, 'w': 128, 'h': 128, 'func': death_event, 'once': True})
-    # scene.trigs.add(TriggerClip(256, 256, 128, 128, death_event, True))
-    # scene.trigs.add(TriggerClip(512, 512, 128, 128, retranslate_event, True))
-    scene.add_ent({'type': 'DropWeap', 'x': 0, 'y': 64, 'wid': 1})
-    scene.add_ent({'type': 'DropWeap', 'x': 128, 'y': 64, 'wid': 1})
-    scene.add_ent({'type': 'Prop', 'x': 512, 'y': 128, 'w': 24, 'h': 20, 'img': r'game\props\tumbochka_0.png'})
-    scene.add_ent({'type': 'Prop', 'x': 512, 'y': 256, 'w': 24, 'h': 20, 'img': r'game\props\tumbochka_0.png',
-                   'dynamic': True, 'drag': 0.5})
-    scene.add_ent({'type': 'SceneCollision', 'x': 337, 'y': 125, 'w': 53, 'h': 54})
-    scene.add_ent({'type': 'SceneCollision', 'x': 5, 'y': 46, 'w': 182, 'h': 7})
-    scene.start_dial('lvl_0_0')
-    return scene
 
 
 if __name__ == '__main__':
