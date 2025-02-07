@@ -228,8 +228,9 @@ def dialgetter(key):
 
 class RenderableImage:  # base image container made to be configurable
     # базовый контейнер изображения для рендера сделанный для удобной конфигурации
-    def __init__(self, name, filepath, x=0.0, y=0.0, tw=0.0, th=0.0, colorkey=None, do_render=True):
+    def __init__(self, name, filepath, x=0.0, y=0.0, tw=0.0, th=0.0, overlay=False, colorkey=None, do_render=True):
         self.name = name
+        self.overlay = overlay
         self.img = imgloader(filepath, colorkey)
         if not (tw <= 0.0 or th <= 0.0):
             print(self.img.get_width() * tw, self.img.get_height() * th, self.name)
@@ -256,8 +257,8 @@ class RenderableImage:  # base image container made to be configurable
 class ParallaxImage(RenderableImage):  # container for image with all parallax (offset with the cursor) data about it
     # базовый контейнер рендер-изображения, дополненный данными для параллакса
     # справка::параллакс - эффект смещения, в данном контексте относительно курсора
-    def __init__(self, name, filepath, x=0.0, y=0.0, tw=0.0, th=0.0, pm=1.0, colorkey=None, do_render=True):
-        super().__init__(name, filepath, x, y, tw, th, colorkey, do_render)
+    def __init__(self, name, filepath, x=0.0, y=0.0, tw=0.0, th=0.0, pm=1.0, overlay=False, colorkey=None, do_render=True):
+        super().__init__(name, filepath, x, y, tw, th, overlay, colorkey, do_render)
         self.para_mul = pm  # parallax offset multiplier/множитель параллакс-смещения
 
     def render(self, screen, *params):
@@ -267,8 +268,8 @@ class ParallaxImage(RenderableImage):  # container for image with all parallax (
 
 class PlayerOffsetImage(RenderableImage):  # container for image with support of relative to player offset
     # базовый контейнер рендер-изображения с поддержкой относительного к игроку смещения
-    def __init__(self, name, filepath, x=0.0, y=0.0, tw=REL_SCALE, th=REL_SCALE, colorkey=None, do_render=True):
-        super().__init__(name, filepath, x, y, tw, th, colorkey, do_render)
+    def __init__(self, name, filepath, x=0.0, y=0.0, tw=REL_SCALE, th=REL_SCALE, overlay=False, colorkey=None, do_render=True):
+        super().__init__(name, filepath, x, y, tw, th, overlay, colorkey, do_render)
 
     def render(self, screen, *params):
         screen.blit(self.img, (self.scenepos[0] - params[0] * REL_SCALE + POFFSET_X, self.scenepos[1] - params[1]
@@ -1349,7 +1350,7 @@ class BaseScene:  # scene class base: just a holder for scene content
     def render(self, screen):
         # rendering images
         for _ in self.imghld.values():
-            if _.do_render:
+            if _.do_render and not _.overlay:
                 _.render(screen, self.para_l[0], self.para_l[1])
         # rendering and moving independent sprites
         self.sgroup.draw(screen)
@@ -1452,7 +1453,7 @@ class GameScene(BaseScene):
     def render(self, screen):
         # rendering images
         for _ in self.imghld.values():
-            if _.do_render:
+            if _.do_render and not _.overlay:
                 if isinstance(_, PlayerOffsetImage):
                     _.render(screen, self.player.coords[0], self.player.coords[1])
                 else:
@@ -1462,7 +1463,6 @@ class GameScene(BaseScene):
         self.sgroup.update()
         self.items.draw(screen)
         self.props.draw(screen)
-        self.sclips.draw(screen)
         # rendering UIEs
         for _ in self.uihld.values():
             if _.do_render:
@@ -1477,6 +1477,12 @@ class GameScene(BaseScene):
         if self.debug:
             self.trigs.draw(screen)
             PlayerClip.PCG.draw(screen)
+        for _ in self.imghld.values():
+            if _.do_render and _.overlay:
+                if isinstance(_, PlayerOffsetImage):
+                    _.render(screen, self.player.coords[0], self.player.coords[1])
+                else:
+                    _.render(screen, self.para_l[0], self.para_l[1])
 
     def ui_validator(self, event, click=False):
         if self.dial:
@@ -1637,20 +1643,37 @@ def mmenu_imgs_init():
                                Y_SFAC / 2, Y_SFAC / 2, do_render=False)
     clachr = ParallaxImage('CLA_CHR', r'mmenu\CLA_Chr__0003s_0004_HD_Obvod.png',
                            X_CENTER - clachr_size / 2, SCREENRES.current_h - clachr_size + 50,
-                           Y_SFAC / 2, Y_SFAC / 2, 1.5, -2)
+                           Y_SFAC / 2, Y_SFAC / 2, 1.5, colorkey=-2)
     clachr_g = ParallaxImage('CLA_CHR_G', r'mmenu\CLA_Chr__0003s_0001_HD_GS_Zakras.png',
                              X_CENTER - clachr_size / 2, SCREENRES.current_h - clachr_size + 50,
-                             Y_SFAC / 2, Y_SFAC / 2, 1.5, -2, False)
+                             Y_SFAC / 2, Y_SFAC / 2, 1.5, colorkey=-2, do_render=False)
     clachr_bld = ParallaxImage('CLA_CHR_BLD ', r'mmenu\CLA_Chr__0003s_0002_BLD.png',
                                X_CENTER - clachr_size / 2, SCREENRES.current_h - clachr_size + 50,
-                               Y_SFAC / 2, Y_SFAC / 2, 1.5, -2)
+                               Y_SFAC / 2, Y_SFAC / 2, 1.5, colorkey=-2)
     clachr_col = ParallaxImage('CLA_CHR_COL', r'mmenu\CLA_Chr__0003s_0003_HD_ColOL.png',
                                X_CENTER - clachr_size / 2, SCREENRES.current_h - clachr_size + 50,
-                               Y_SFAC / 2, Y_SFAC / 2, 1.5, -2)
+                               Y_SFAC / 2, Y_SFAC / 2, 1.5, colorkey=-2)
     clachr_gno = ParallaxImage('CLA_CHR_GNO', r'mmenu\CLA_Chr__0003s_0000_gno.png',
                                X_CENTER - 512 - 256 - 128, SCREENRES.current_h - 512 - 256, 0.8, 0.8,
-                               4, -2)
-    ttle = ParallaxImage('TITLE', r'mmenu\CLA_Txt_0.png', X_CENTER - 1024 * Y_SFAC, 0, Y_SFAC / 2, Y_SFAC / 2, 2.5, -2)
+                               4, colorkey=-2)
+    ttle = ParallaxImage('TITLE', r'mmenu\CLA_Txt_0.png', X_CENTER - 1024 * Y_SFAC, 0, Y_SFAC / 2, Y_SFAC / 2, 2.5,
+                         colorkey=-2)
+    print(C_LVL)
+    if int(C_LVL) == 1:
+        clachr_bld.show()
+        clachr_g.hide()
+        clachr_col.show()
+        mmenuimg_1.show()
+        mmenuimg_0.hide()
+    elif int(C_LVL) == 0:
+        clachr_bld.hide()
+        clachr_g.show()
+        clachr_col.hide()
+        mmenuimg_1.hide()
+        mmenuimg_0.show()
+    else:
+        mmenuimg_1.hide()
+        mmenuimg_0.hide()
     return mmenuimg_0, mmenuimg_1, clachr, clachr_col, clachr_bld, ttle, clachr_gno, clachr_g
 
 
@@ -1665,13 +1688,15 @@ def mmenu_obj_init():
     savebtn.set_func(mmenu_group_switch)
     sgbtn = PushBtn('UI_BTN_STARTGAME', BASELOCALE, w=450, x=X_CENTER - 225, y=Y_CENTER - 72, txt="mmenu_startgame")
     sgbtn.set_func(mmenu_sgame_g_switch)
+    version = UIText('UI_TXT_VER', BASELOCALE, x=X_CENTER, y=SCREENRES.current_h - 50, txt='cla_c_ver', font=FONT_1)
+    version.recolor('col_txt', '#9D9DAF')
     locbtn = PushBtn('UI_BTN_LOC', BASELOCALE, w=50, x=SCREENRES.current_w - 75, y=SCREENRES.current_h - 75,
                      txt='mmenu_loc')
     expbtn = PushBtn('UI_BTN_EXP', False, w=50, x=25, y=SCREENRES.current_h - 75, txt='i')
     locbtn.set_func(mmenu_locsw)
     expbtn.set_func(mmenu_expnote_switch)
     mmenu.add_uie(killgamebtn, savebtn, sgbtn, locbtn, expbtn, SaveloadMenu('UIG_SL'), mmenu_sgame_group_init(),
-                  mmenu_claexp_init())
+                  mmenu_claexp_init(), version)
     mmenu.set_music('dymyat_molcha.mp3')
     for _ in range(10):
         mmenu.add_s(SnowflakeSprite)
@@ -1698,8 +1723,37 @@ def mmenu_claexp_init():
     txt_0.recolor('col_txt', '#BFBFFF')
     txt_1 = UIText('UI_CE_1', BASELOCALE, x=X_CENTER, y=255, txt='cla_exp_1', font=FONT_2)
     txt_1.recolor('col_txt', '#BFBFFF')
+    txt_2 = UIText('UI_CE_2', BASELOCALE, x=X_CENTER, y=300, txt='cla_exp_2', font=FONT_2)
+    txt_2.recolor('col_txt', '#BFBFFF')
+    txt_3 = UIText('UI_CE_3', BASELOCALE, x=X_CENTER, y=350, txt='cla_exp_3', font=FONT_3)
+    txt_3.recolor('col_txt', '#BFBFFF')
+    txt_4 = UIText('UI_CE_4', BASELOCALE, x=X_CENTER, y=390, txt='cla_exp_4', font=FONT_2)
+    txt_4.recolor('col_txt', '#BFBFFF')
+    txt_5 = UIText('UI_CE_5', BASELOCALE, x=X_CENTER, y=420, txt='cla_exp_5', font=FONT_2)
+    txt_5.recolor('col_txt', '#BFBFFF')
+    txt_6 = UIText('UI_CE_6', BASELOCALE, x=X_CENTER, y=450, txt='cla_exp_6', font=FONT_2)
+    txt_6.recolor('col_txt', '#BFBFFF')
+    txt_7 = UIText('UI_CE_7', BASELOCALE, x=X_CENTER, y=480, txt='cla_exp_7', font=FONT_2)
+    txt_7.recolor('col_txt', '#BFBFFF')
+    txt_8 = UIText('UI_CE_8', BASELOCALE, x=X_CENTER, y=510, txt='cla_exp_8', font=FONT_2)
+    txt_8.recolor('col_txt', '#BFBFFF')
+    txt_9 = UIText('UI_CE_9', BASELOCALE, x=X_CENTER, y=560, txt='cla_exp_9', font=FONT_2)
+    txt_9.recolor('col_txt', '#BFBFFF')
+    txt_10 = UIText('UI_CE_10', BASELOCALE, x=X_CENTER, y=590, txt='cla_exp_10', font=FONT_2)
+    txt_10.recolor('col_txt', '#BFBFFF')
+    txt_11 = UIText('UI_CE_11', BASELOCALE, x=X_CENTER - 50, y=750, txt='cla_exp_11', font=FONT_2)
+    txt_11.recolor('col_txt', '#BFBFFF')
+    txt_12 = UIText('UI_CE_12', BASELOCALE, x=X_CENTER, y=780, txt='cla_exp_12', font=FONT_2)
+    txt_12.recolor('col_txt', '#BFBFFF')
+    txt_13 = UIText('UI_CE_13', BASELOCALE, x=X_CENTER, y=900, txt='cla_exp_13', font=FONT_2)
+    txt_13.recolor('col_txt', '#BFBFFF')
+    txt_14 = UIText('UI_CE_14', BASELOCALE, x=X_CENTER, y=930, txt='cla_exp_14', font=FONT_2)
+    txt_14.recolor('col_txt', '#BFBFFF')
+    txt_15 = UIText('UI_CE_15', BASELOCALE, x=X_CENTER, y=960, txt='cla_exp_15', font=FONT_2)
+    txt_15.recolor('col_txt', '#BFBFFF')
     grp = UIGroup('UIG_CLAEXP')
-    grp.add_elem(txt_t, txt_0, txt_1)
+    grp.add_elem(txt_t, txt_0, txt_1, txt_2, txt_3, txt_4, txt_5, txt_6, txt_7, txt_8, txt_9, txt_10, txt_11, txt_12,
+                 txt_13, txt_14, txt_15)
     return grp
 
 

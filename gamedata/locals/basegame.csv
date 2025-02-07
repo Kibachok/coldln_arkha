@@ -1,10 +1,25 @@
 loc_id;en;ru
 n;;
+cla_c_ver;CL::A | 0.0.13D - Pre-alpha tech demo;CL::A | 0.0.13D - Пре-альфа технодемо
 cla_exp_t;Explanation note;Пояснительная записка
 cla_exp_0;CL::A (ColdLine::Arkhangelsk) is a top-down shooter inspired by "Hotline Miami" set in North-eastern Russia,;CL::A (Колдлайн::Архангельск) - игра жанра TDS (top-down shooter, стрелялка с видом сверху),
 cla_exp_1; Arkhangelsk in particular; вдохновением послужила Hotline miami, а сама игра нещадно эксплуатирует сеттинг Северозапада РФ и Архангельска в частности
+cla_exp_2;This is a technical demo intended just to show some basic game features that we have now;Это - технодемо, предназначенное исключительно для показа возможностей игры, реализованных на данный момент
+cla_exp_3;Game in current state includes:;Сейчас в игре есть:
+cla_exp_4;- object-oriented game base (including many elements like UIEs, scenes etc.);- объектно-ориентированная база (включающая множество элементов - сцены, элементы интерфейса и т.д.)
+cla_exp_5;- variety of external file interactors (locale, level and image loaders, saves using DB);- различные взаимодействия с внешними файлами (загрузчики сцен, локализаций и изображений, сохранения игры и использованием БД)
+cla_exp_6;- levels base (player and entities);- база для игровых уровней (игрок и сущности)
+cla_exp_7;- some demo levels;- пару демонстрационных уровней
+cla_exp_8;- some visual part;- некоторый визуал
+cla_exp_9;There's no story or actual gameplay in this demo;В данном демо не имеется ни сюжета, ни реального геймплея
+cla_exp_10;but we plan to further develop this game;но мы планируем дальше разрабатывать игру
+cla_exp_11;Credits:;
+cla_exp_12;Owaz', Llirik;Owaz', Llirik
+cla_exp_13;Initially i really wanted to make proper character but it looked like shit;Я действительно изначально хотел сделать нормального персонажа но он получился 'очень плохо'
+cla_exp_14;and then i tried to make boykisser as a char and he turned out to be too good;а потом я попробовал сделать бойкиссера (чисто по приколу) и он получился нормальным
+cla_exp_15;so there's now a boykisser as a main character   - Owaz;так что главный герой теперь бойкиссер   - Owaz
 mmenu_loc;EN;РУС
-mmenu_killgame;kill game;прикОНЧИТЬ игру
+mmenu_killgame;kill game;Выход из игры
 mmenu_startgame;Start new game;Начать новую игру
 mmenu_saveloadgame;Open save menu (load game);Открыть меню загрузки сохранений
 mmenu_resumegame;Resume last game;Продолжить последнюю игру
