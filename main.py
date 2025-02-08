@@ -1,10 +1,11 @@
 # DEMO WIP Build of game with main menu and some simple classes only
+import csv
 import os
+import sqlite3
+import time
+from random import randint, randrange, random
 
 import pygame
-import csv
-import sqlite3
-from random import randint, randrange, random
 
 
 def csvloader(namepath):
@@ -91,10 +92,10 @@ def lvlsaver():
 def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games
     cs = DB.cursor()
     if type == 0:
-        if cs.execute('''SELECT savename FROM saves WHERE savename=?''', (*data, )).fetchall():
+        if cs.execute('''SELECT savename FROM saves WHERE savename=?''', (*data,)).fetchall():
             return 'mmenu_sgame_e_ae'
         try:
-            cs.execute('''INSERT INTO saves(savename, lvl) VALUES(?, 0)''', (*data, )).fetchall()
+            cs.execute('''INSERT INTO saves(savename, lvl) VALUES(?, 0)''', (*data,)).fetchall()
             DB.commit()
             return
         except sqlite3.OperationalError:
@@ -106,7 +107,7 @@ def db_executor(type=0, *data):  # type - type of SQL request; 0 = new game, 1 =
             return False
     elif type == 2:
         try:
-            cs.execute('''DELETE FROM saves WHERE savename=?''', (*data, )).fetchall()
+            cs.execute('''DELETE FROM saves WHERE savename=?''', (*data,)).fetchall()
             DB.commit()
             return
         except sqlite3.OperationalError:
@@ -199,6 +200,7 @@ def sflake_init():
 
 class SnowflakeSprite(pygame.sprite.Sprite):  # main menu snowflake sprite / спрайт снежинки для главного меню
     sflake_list = sflake_init()  # a list of pngs for one of them being randomly selected
+
     # ^^^ список картинок снежинок, из которого одна будет выбрано случайно
 
     def __init__(self, *sgroup):
@@ -802,8 +804,8 @@ class DropWeap(Entity):
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
             scene.get_uie('UI_TXT_IPCK').set_txt(f'{locgetter(BASELOCALE, 'item_pckp')}'
                                                  f'{locgetter(WLOCALE, 'w_' + str(self.wid))}'
-                                                 f'{(' ' + '(' + locgetter(WLOCALE, 'w_' + str(scene.player.weap)) 
-                                                     + locgetter(BASELOCALE, 'item_drop')) 
+                                                 f'{(' ' + '(' + locgetter(WLOCALE, 'w_' + str(scene.player.weap))
+                                                     + locgetter(BASELOCALE, 'item_drop'))
                                                  if scene.player.weap != 0 else ''}')
             if scene.player.interact_request:
                 self.replicate(scene.player.weap_exchange(self.wid), scene)
@@ -851,11 +853,11 @@ class Prop(Entity):
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
             if not self.dynamic:
                 if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and
-                        (not(pcoord[1] + PSCALE - 2 < self.y) and not(pcoord[1] > self.y + self.h - 2))):
+                        (not (pcoord[1] + PSCALE - 2 < self.y) and not (pcoord[1] > self.y + self.h - 2))):
                     scene.player.coords[0] = self.x + self.w
                     scene.player.vel[0] = 0
-                elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not(pcoord[1] + PSCALE - 2 < self.y)
-                                                                             and not(pcoord[1] > self.y + self.h - 2)):
+                elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not (pcoord[1] + PSCALE - 2 < self.y)
+                                                                             and not (pcoord[1] > self.y + self.h - 2)):
                     scene.player.coords[0] = self.x - PSCALE
                     scene.player.vel[0] = 0
                 elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
@@ -901,12 +903,12 @@ class SceneCollision(Entity):
     def update(self, pcoord, scene, *args, **kwargs):
         super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
-            if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and (not(pcoord[1] + PSCALE - 2 < self.y)
-                                                                                 and not(pcoord[1] > self.y
-                                                                                         + self.h - 2))):
+            if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and (not (pcoord[1] + PSCALE - 2 < self.y)
+                                                                                 and not (pcoord[1] > self.y
+                                                                                          + self.h - 2))):
                 scene.player.coords[0] = self.x + self.w
                 scene.player.vel[0] = 0
-            elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not(pcoord[1] + PSCALE - 2 < self.y) and not(
+            elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not (pcoord[1] + PSCALE - 2 < self.y) and not (
                     pcoord[1] > self.y + self.h - 2)):
                 scene.player.coords[0] = self.x - PSCALE
                 scene.player.vel[0] = 0
@@ -1101,9 +1103,6 @@ class Player:
     def render(self, screen):
         self.char_spritemap.render(screen, self.status, self.deg, self.weap)
 
-    def atc(self):
-
-
 
 class BaseScene:  # scene class base: just a holder for scene content
     # базовый класс сцены - контейнера для содержимого на экране (хотя иногда и за его пределами) в данный м.вр.
@@ -1285,6 +1284,8 @@ class GameScene(BaseScene):
         self.Pshots = pygame.sprite.Group()
         self.enemshots = pygame.sprite.Group()
         self.enemy = TestEnemy(2000, 1000, self.enemgroup)
+        self.tic = 0
+        self.bullet = False
 
     def set_holder(self, hld):
         super().set_holder(hld)
@@ -1339,6 +1340,8 @@ class GameScene(BaseScene):
         self.sgroup.draw(screen)
         self.sgroup.update()
         self.enemgroup.draw(screen)
+        self.Pshots.draw(screen)
+        self.enemshots.draw(screen)
         self.items.draw(screen)
         self.props.draw(screen)
         self.sclips.draw(screen)
@@ -1370,6 +1373,7 @@ class GameScene(BaseScene):
                 self.ui_validator(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self.ui_validator(event, True)
+                self.atc()
             elif event.type == pygame.KEYDOWN:
                 self.player.interaction_proc(event)
                 if event.key == pygame.K_ESCAPE:
@@ -1402,7 +1406,7 @@ class GameScene(BaseScene):
             if self.player.status == 2 and not self.player.did_died:
                 if self.player.weap != 0:
                     self.items.add(DropWeap(self.player.coords[0] + (random() - 0.5) * 64, self.player.coords[1] +
-                                      (random() - 0.5) * 64, self.player.weap))
+                                            (random() - 0.5) * 64, self.player.weap))
                 self.set_prior('UIG_DEATH')
                 self.player.did_died = True
             self.trigs.update(self.player.coords, self)
@@ -1411,12 +1415,22 @@ class GameScene(BaseScene):
             self.props.update(self.player.coords, self)
             self.sclips.update(self.player.coords, self)
             self.player.interact_request = False
+            self.toc = time.perf_counter()
+            if self.toc - self.tic >= 0.5 and self.bullet:
+                self.bullet.die()
+                self.bullet = False
+
 
     def save_state(self):
         pass
 
     def load_state(self):
         pass
+
+    def atc(self):
+        if self.player.weap == 1:
+            self.bullet = Shot(X_CENTER - 150, Y_CENTER - 50, self.Pshots)
+            self.tic = time.perf_counter()
 
 
 class SceneHolder:
@@ -1474,12 +1488,12 @@ class SceneHolder:
         else:
             pygame.mixer.music.fadeout(10000)
 
+
 class TestEnemy(pygame.sprite.Sprite):
-    image = imgloader(r"hero.png")
 
     def __init__(self, x, y, *group):
         super().__init__(*group)
-        self.image = TestEnemy.image
+        self.image = imgloader(r"hero.png")
         self.x = x
         self.y = y
         self.rect = self.image.get_rect()
@@ -1489,27 +1503,26 @@ class TestEnemy(pygame.sprite.Sprite):
     def update(self, pcoord, scene, *args, **kwargs):
         self.rect.update(self.x + POFFSET_X - pcoord[0] * REL_SCALE, self.y + POFFSET_Y - pcoord[1] * REL_SCALE,
                          self.rect.width, self.rect.height)
-        if pygame.sprite.spritecollideany(self, GameScene.Pshots) or pygame.sprite.spritecollideany(self, GameScene.enemshots):
+        if pygame.sprite.spritecollideany(self, scene.Pshots) or pygame.sprite.spritecollideany(self, scene.enemshots):
             self.death()
 
-
-
     def death(self):
-        pass
+        self.image = imgloader(r"game\effects\blood.png")
+
 
 class Shot(pygame.sprite.Sprite):
-    image = imgloader(r"game\scene\1-335as.jpg")
+    image = imgloader(r"game\effects\Shot.png")
     image = pygame.transform.scale(image, (image.get_width() * 2.5, image.get_height() * 2.5))
 
-    def __init__(self, *group):
+    def __init__(self, x, y, *group):
         super().__init__(*group)
         self.image = Shot.image
         self.rect = Shot.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
 
-    def render(self):
-        self.image.blit(screen, self)
-        
-
+    def die(self):
+        self.kill()
 
 
 # ^^^ SCENE CLASSES END (КОНЕЦ ЗОНЫ КЛАССОВ СЦЕНЫ)
