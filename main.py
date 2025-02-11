@@ -79,7 +79,7 @@ Y_CENTER = SCREENRES.current_h // 2  # same as X_CENTER
 X_SFAC = SCREENRES.current_w // 125 / 8
 Y_SFAC = SCREENRES.current_h // 125 / 8
 REL_SCALE = Y_SFAC * 4  # relational scale for scenes
-PSCALE = 28  # player collision scale value
+PSCALE = 24  # player collision scale value
 POFFSET_X = X_CENTER - Y_SFAC * PSCALE * 2
 POFFSET_Y = Y_CENTER - Y_SFAC * PSCALE * 2
 print(X_SFAC, Y_SFAC)
@@ -836,11 +836,11 @@ class PlayerClip(pygame.sprite.Sprite):
 
 
 class Entity(pygame.sprite.Sprite):  # base entity for scene, init it with gamescene ONLY
-    def __init__(self, pcoord, x=0, y=0, *sg):
+    def __init__(self, pcoord, x=0, y=0, w=0, h=0, *sg):
         super().__init__(*sg)
         self.x, self.y = x, y
         self.rect = pygame.Rect(x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, y * REL_SCALE + POFFSET_Y - pcoord[1]
-                                * REL_SCALE, REL_SCALE, REL_SCALE)
+                                * REL_SCALE, REL_SCALE * w, REL_SCALE * h)
 
     def update(self, pcoord, scene, *args, **kwargs):  # basically an "entity mover" in this specific case
         self.rect.update(self.x * REL_SCALE + POFFSET_X - pcoord[0] * REL_SCALE, self.y * REL_SCALE + POFFSET_Y -
@@ -849,8 +849,7 @@ class Entity(pygame.sprite.Sprite):  # base entity for scene, init it with games
 
 class TriggerClip(Entity):
     def __init__(self, pcoord, x=0, y=0, w=0, h=0, func=None, once=False, *tcg):
-        super().__init__(pcoord, x, y, *tcg)
-        self.rect.update(self.rect.x, self.rect.y, REL_SCALE * w, REL_SCALE * h)
+        super().__init__(pcoord, x, y, w, h, *tcg)
         self.image = pygame.Surface((w * REL_SCALE, h * REL_SCALE), pygame.SRCALPHA, 32)
         pygame.draw.rect(self.image, '#00ff00', (0, 0, self.rect.w, self.rect.h), 5)  # debug
         self.once = once
@@ -877,9 +876,8 @@ class TriggerClip(Entity):
 
 class DropItem(Entity):
     def __init__(self, pcoord, name, img, x=0, y=0, *icg):
-        super().__init__(pcoord, x, y, *icg)
+        super().__init__(pcoord, x, y, 32, 32, *icg)
         rel32 = REL_SCALE * 32
-        self.rect.update(self.rect.x, self.rect.y, rel32, rel32)
         self.name = name
         img = imgloader(img)
         self.image = pygame.transform.scale(img, (rel32, rel32))
@@ -894,9 +892,8 @@ class DropItem(Entity):
 
 class DropWeap(Entity):
     def __init__(self, pcoord, x=0, y=0, wid=1, *icg):
-        super().__init__(pcoord, x, y, *icg)
+        super().__init__(pcoord, x, y, 32, 32, *icg)
         rel32 = REL_SCALE * 32
-        self.rect.update(self.rect.x, self.rect.y, rel32, rel32)
         self.wid = wid
         self.image = pygame.transform.scale(self.load_weap(), (rel32, rel32))
 
@@ -926,13 +923,62 @@ class DropWeap(Entity):
                                           scene.player.coords[1] + (random() - 0.5) * 64, new_weap))
 
 
-class Prop(Entity):
+class CollisionEntity(Entity):
+    def __init__(self, pcoord, x=0, y=0, w=0, h=0, *csg):
+        super().__init__(pcoord, x, y, w, h, *csg)
+        self.w, self.h = w, h
+        self.image = pygame.Surface((w * REL_SCALE, h * REL_SCALE), pygame.SRCALPHA, 32)
+        self.prev_pos = None
+        pygame.draw.rect(self.image, '#00ff00', (0, 0, self.rect.w, self.rect.h), 5)  # debug
+
+    def static_collide(self, pcoord, scene):
+        scene.player.revert()
+        super().groups()[0].update(scene.player.coords, scene, True)
+        if (self.x + self.w / 2 - PSCALE < pcoord[0] < self.x + self.w and
+                (not (pcoord[1] + PSCALE - 1 < self.y) and not (pcoord[1] > self.y + self.h - 1))):
+            scene.player.vel[0] = 0
+        elif self.x + self.w / 2 > pcoord[0] + PSCALE > self.x and (not (pcoord[1] + PSCALE - 1 < self.y) and
+                                                                    not (pcoord[1] > self.y + self.h - 1)):
+            scene.player.vel[0] = 0
+        elif self.y + self.h / 2 - PSCALE < pcoord[1] < self.y + self.h:
+            scene.player.vel[1] = 0
+        elif self.y + self.h / 2 > pcoord[1] + PSCALE > self.y:
+            scene.player.vel[1] = 0
+
+    def dynamic_collide_player(self, pcoord, scene):
+        if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and
+                (not (pcoord[1] + PSCALE - 1 < self.y) and not (pcoord[1] > self.y + self.h - 1))):
+            self.direction = 0
+            self.vel = scene.player.sl * self.drag
+            if self.drag < 1:
+                scene.player.vel[0] *= self.drag
+        elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not (pcoord[1] + PSCALE - 1 < self.y)
+                                                                     and not (pcoord[1] > self.y + self.h - 1)):
+            self.direction = 1
+            self.vel = scene.player.sl * self.drag
+            if self.drag < 1:
+                scene.player.vel[0] *= self.drag
+        elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
+            self.direction = 2
+            self.vel = scene.player.sl * self.drag
+            if self.drag < 1:
+                scene.player.vel[1] *= self.drag
+        elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
+            self.direction = 3
+            self.vel = scene.player.sl * self.drag
+            if self.drag < 1:
+                scene.player.vel[1] *= self.drag
+
+    def dynamic_collide_obj(self, scene):
+        if self.prev_pos:
+            self.x, self.y = self.prev_pos[:]
+        super().groups()[0].update(scene.player.coords, scene, True)
+
+
+class Prop(CollisionEntity):
     def __init__(self, pcoord, img, x=0, y=0, w=0, h=0, dynamic=False, drag=1, *mecg):
-        super().__init__(pcoord, x, y, *mecg)
+        super().__init__(pcoord, x, y, w, h, *mecg)
         rel32 = REL_SCALE * 32
-        self.w = w
-        self.h = h
-        self.rect.update(self.rect.x, self.rect.y, REL_SCALE * w, REL_SCALE * h)
         img = imgloader(img)
         self.image = pygame.transform.scale(img, (rel32, rel32))
         self.dynamic = dynamic
@@ -942,89 +988,90 @@ class Prop(Entity):
         self.decc = 960
         self.timedelta = pygame.time.Clock()
 
-    def update(self, pcoord, scene, *args, **kwargs):
-        td = self.timedelta.tick() / 1000
-        if self.direction == 0:
-            self.x -= self.vel * td
-        elif self.direction == 1:
-            self.x += self.vel * td
-        elif self.direction == 2:
-            self.y -= self.vel * td
-        elif self.direction == 3:
-            self.y += self.vel * td
-        if self.vel - self.decc * td >= 0:
-            self.vel -= self.decc * td
-        else:
-            self.vel = 0
-        super().update(pcoord, scene, *args, **kwargs)
-        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
-            if not self.dynamic:
-                if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and
-                        (not(pcoord[1] + PSCALE - 2 < self.y) and not(pcoord[1] > self.y + self.h - 2))):
-                    scene.player.coords[0] = self.x + self.w
-                    scene.player.vel[0] = 0
-                elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not(pcoord[1] + PSCALE - 2 < self.y)
-                                                                             and not(pcoord[1] > self.y + self.h - 2)):
-                    scene.player.coords[0] = self.x - PSCALE
-                    scene.player.vel[0] = 0
-                elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
-                    scene.player.coords[1] = self.y + self.h
-                    scene.player.vel[1] = 0
-                elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
-                    scene.player.coords[1] = self.y - PSCALE
-                    scene.player.vel[1] = 0
+    def update(self, pcoord, scene, reloc_only=False, *args, **kwargs):
+        if not reloc_only:
+            self.prev_pos = self.x, self.y
+            td = self.timedelta.tick() / 1000
+            if self.direction == 0:
+                self.x -= self.vel * td
+            elif self.direction == 1:
+                self.x += self.vel * td
+            elif self.direction == 2:
+                self.y -= self.vel * td
+            elif self.direction == 3:
+                self.y += self.vel * td
+            if self.vel - self.decc * td >= 0:
+                self.vel -= self.decc * td
             else:
-                if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and
-                        (not (pcoord[1] + PSCALE - 2 < self.y) and not (pcoord[1] > self.y + self.h - 2))):
-                    self.direction = 0
-                    self.vel = scene.player.sl * self.drag
-                    if self.drag < 1:
-                        scene.player.vel[0] *= self.drag
-                elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not (pcoord[1] + PSCALE - 2 < self.y)
-                                                                             and not (pcoord[1] > self.y + self.h - 2)):
-                    self.direction = 1
-                    self.vel = scene.player.sl * self.drag
-                    if self.drag < 1:
-                        scene.player.vel[0] *= self.drag
-                elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
-                    self.direction = 2
-                    self.vel = scene.player.sl * self.drag
-                    if self.drag < 1:
-                        scene.player.vel[1] *= self.drag
-                elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
-                    self.direction = 3
-                    self.vel = scene.player.sl * self.drag
-                    if self.drag < 1:
-                        scene.player.vel[1] *= self.drag
+                self.vel = 0
+        super().update(pcoord, scene, *args, **kwargs)
+        if not reloc_only:
+            isplayerclip = pygame.sprite.spritecollideany(self, PlayerClip.PCG)
+            issceneclip = pygame.sprite.spritecollideany(self, scene.sclips)
+            pseudogroup = pygame.sprite.Group(self.groups()[0])
+            pseudogroup.remove(self)
+            isselfclip = pygame.sprite.spritecollideany(self, pseudogroup)
+            if isplayerclip or issceneclip:
+                if not self.dynamic:
+                    super().static_collide(pcoord, scene)
+                else:
+                    if isselfclip:
+                        super().dynamic_collide_obj(scene)
+                        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+                            super().static_collide(pcoord, scene)
+                    elif issceneclip:
+                        super().dynamic_collide_obj(scene)
+                        if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
+                            super().static_collide(pcoord, scene)
+                    elif isplayerclip:
+                        super().dynamic_collide_player(pcoord, scene)
 
 
-class SceneCollision(Entity):
+class SceneCollision(CollisionEntity):
     def __init__(self, pcoord, x=0, y=0, w=0, h=0, *ccg):
-        super().__init__(pcoord, x, y, *ccg)
+        super().__init__(pcoord, x, y, w, h, *ccg)
         self.w = w
         self.h = h
-        self.rect.update(self.rect.x, self.rect.y, REL_SCALE * w, REL_SCALE * h)
         self.image = pygame.Surface((self.rect.width, self.rect.height))
         pygame.draw.rect(self.image, '#5a5a5a', self.rect)
 
     def update(self, pcoord, scene, *args, **kwargs):
         super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, PlayerClip.PCG):
-            if (self.x + self.w // 2 - PSCALE < pcoord[0] < self.x + self.w and (not(pcoord[1] + PSCALE - 2 < self.y)
-                                                                                 and not(pcoord[1] > self.y
-                                                                                         + self.h - 2))):
-                scene.player.coords[0] = self.x + self.w
-                scene.player.vel[0] = 0
-            elif self.x + self.w // 2 > pcoord[0] + PSCALE > self.x and (not(pcoord[1] + PSCALE - 2 < self.y) and not(
-                    pcoord[1] > self.y + self.h - 2)):
-                scene.player.coords[0] = self.x - PSCALE
-                scene.player.vel[0] = 0
-            elif self.y + self.h // 2 - PSCALE < pcoord[1] < self.y + self.h:
-                scene.player.coords[1] = self.y + self.h
-                scene.player.vel[1] = 0
-            elif self.y + self.h // 2 > pcoord[1] + PSCALE > self.y:
-                scene.player.coords[1] = self.y - PSCALE
-                scene.player.vel[1] = 0
+            super().static_collide(pcoord, scene)
+
+
+class TestEnemy(Entity):
+    def __init__(self, pcoord, x=0, y=0, *esg):
+        super().__init__(pcoord, x, y, PSCALE, PSCALE, *esg)
+        self.image = imgloader(r"game\char\bkiss\cla_bkiss_sprite_0.png")
+        self.image = pygame.transform.scale(self.image, (self.image.get_width() * REL_SCALE,
+                                                         self.image.get_height() * REL_SCALE))
+
+    def update(self, pcoord, scene, *args, **kwargs):
+        super().update(pcoord, scene, *args, **kwargs)
+        if pygame.sprite.spritecollideany(self, scene.Pshots) or pygame.sprite.spritecollideany(self, scene.enemshots):
+            self.death()
+
+    def death(self):
+        self.image = imgloader(r"game\char\bkiss\cla_bkiss_sprite_dead_0.png")
+        self.image = pygame.transform.scale(self.image, (self.image.get_width() * REL_SCALE,
+                                                         self.image.get_height() * REL_SCALE))
+
+
+class Shot(pygame.sprite.Sprite):
+    image = imgloader(r"game\effects\Shot.png")
+    image = pygame.transform.scale(image, (image.get_width() * 2.5, image.get_height() * 2.5))
+
+    def __init__(self, x, y, *group):
+        super().__init__(*group)
+        self.image = Shot.image
+        self.rect = Shot.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+    def die(self):
+        self.kill()
 
 
 class CharSpritemap:
@@ -1074,6 +1121,7 @@ class Player:
         self.orient = (0, 0)
         self.deg = 0
         self.coords = startpos
+        self.prev_coors = None
         self.vel = [0, 0]  # velocities / скорости (0=down,1=right)
         self.acc = 720  # acceleration, in pix/sec
         self.decc = 960  # deceleration, in pix/sec
@@ -1136,6 +1184,7 @@ class Player:
                 self.set_orient((0, 0))
 
     def move(self):
+        self.prev_coors = self.coords[:]
         td = self.timedelta.tick() / 1000
         self.d_td += td
         # coord debug
@@ -1197,7 +1246,7 @@ class Player:
         if self.coords[1] < 0:
             self.coords[1] = 0
             self.vel[1] = 0
-        self.clip.update(self.coords)
+        # self.clip.update(self.coords)
 
     def set_orient(self, orient):
         if orient != (0, 0) or orient != self.orient:
@@ -1206,6 +1255,15 @@ class Player:
                 self.deg = Player.orients[orient]
             except KeyError:
                 pass
+
+    def revert(self):
+        if self.prev_coors:
+            print('-----')
+            print(self.prev_coors)
+            print('-----')
+            print(self.coords)
+            print('-----')
+            self.coords = self.prev_coors[:]
 
     def render(self, screen):
         self.char_spritemap.render(screen, self.status, self.deg, self.weap)
@@ -1390,6 +1448,14 @@ class GameScene(BaseScene):
         self.player = Player(startpos)
         self.trigs, self.items, self.props, self.sclips = (pygame.sprite.Group(), pygame.sprite.Group(),
                                                            pygame.sprite.Group(), pygame.sprite.Group())
+        self.enems = pygame.sprite.Group()
+        self.Pshots = pygame.sprite.Group()
+        self.enemshots = pygame.sprite.Group()
+        self.enemy = TestEnemy(self.player.coords, 128, 128, self.enems)
+        self.tic = 0
+        self.bullet = False
+        self.delay = 0
+        self.timer = pygame.time.Clock()
 
     def set_holder(self, hld):
         super().set_holder(hld)
@@ -1433,6 +1499,8 @@ class GameScene(BaseScene):
                 self.props.add(Prop(self.player.coords, **_))
             elif ent_type == 'SceneCollision':
                 self.sclips.add(SceneCollision(self.player.coords, **_))
+            elif ent_type == 'Enemy':
+                self.enems.add(TestEnemy(self.player.coords, **_))
 
     def pause(self):
         self.set_prior('UIG_PAUSE')
@@ -1463,6 +1531,9 @@ class GameScene(BaseScene):
         self.sgroup.update()
         self.items.draw(screen)
         self.props.draw(screen)
+        self.enems.draw(screen)
+        self.Pshots.draw(screen)
+        self.enemshots.draw(screen)
         # rendering UIEs
         for _ in self.uihld.values():
             if _.do_render:
@@ -1497,6 +1568,7 @@ class GameScene(BaseScene):
                 self.ui_validator(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self.ui_validator(event, True)
+                self.atc()
             elif event.type == pygame.KEYDOWN:
                 self.player.interaction_proc(event)
                 if event.key == pygame.K_ESCAPE:
@@ -1532,17 +1604,31 @@ class GameScene(BaseScene):
                                       (random() - 0.5) * 64, self.player.weap))
                 self.set_prior('UIG_DEATH')
                 self.player.did_died = True
+            self.sclips.update(self.player.coords, self)
+            self.props.update(self.player.coords, self)
             self.trigs.update(self.player.coords, self)
             self.items.update(self.player.coords, self)
-            self.props.update(self.player.coords, self)
-            self.sclips.update(self.player.coords, self)
+            self.enems.update(self.player.coords, self)
             self.player.interact_request = False
+            if self.tic >= self.delay and self.bullet:
+                self.bullet.die()
+                self.bullet = False
+                self.tic = 0
+            elif self.bullet:
+                self.tic += self.timer.tick()
 
     def save_state(self):
         pass
 
     def load_state(self):
         pass
+
+    def atc(self):
+        if self.player.weap == 1:
+            self.bullet = Shot(X_CENTER - 150, Y_CENTER - 50, self.Pshots)
+            self.tic = 0
+            self.timer = pygame.time.Clock()
+            self.delay = 1000
 
 
 class SceneHolder:
