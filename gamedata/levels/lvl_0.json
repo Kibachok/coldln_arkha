@@ -49,21 +49,43 @@
 		},
 		{
 			"type": "Prop",
-			"x": 92,
-			"y": 250,
-			"w": 24,
-			"h": 20,
-			"img": "game/props/tumbochka_0.png"
-		},
-		{
-			"type": "Prop",
-			"x": 100,
+			"x": 250,
 			"y": 275,
 			"w": 24,
 			"h": 20,
 			"img": "game/props/tumbochka_0.png",
 			"dynamic": true,
-			"drag": 0.5
+			"drag": 2
+		},
+		{
+			"type": "Prop",
+			"x": 250,
+			"y": 300,
+			"w": 24,
+			"h": 20,
+			"img": "game/props/tumbochka_0.png",
+			"dynamic": true,
+			"drag": 0.75
+		},
+		{
+			"type": "Prop",
+			"x": 300,
+			"y": 275,
+			"w": 24,
+			"h": 20,
+			"img": "game/props/tumbochka_0.png",
+			"dynamic": true,
+			"drag": 1
+		},
+		{
+			"type": "Prop",
+			"x": 300,
+			"y": 300,
+			"w": 24,
+			"h": 20,
+			"img": "game/props/tumbochka_0.png",
+			"dynamic": true,
+			"drag": 1
 		},
 		{
 			"type": "SceneCollision",
