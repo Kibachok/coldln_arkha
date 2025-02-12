@@ -50,6 +50,19 @@ def lvlreader():
     return lvls
 
 
+def weapreader():
+    weaps = []
+    with open(r'gamedata\weaps.json') as wc:
+        tmp = json.load(wc)
+        try:
+            for _ in tmp:
+                weaps.append(_)
+        except json.decoder.JSONDecodeError:
+            print(f'Failed to read weap config')
+    print(weaps)
+    return weaps
+
+
 # UPPERCASE = global used variable
 # global used/required commands
 pygame.init()
@@ -57,6 +70,7 @@ pygame.mixer.init()
 
 DB = sqlite3.connect(r'savedata\savedata.sqlite3')
 LVLS = lvlreader()
+WEAPS = weapreader()
 DIALS = csvloader(f'dials/dials.csv')
 
 BASELOCALE = csvloader('locals/basegame.csv')
@@ -72,6 +86,7 @@ WEAP_PICKUP = pygame.mixer.Sound(r"gamedata\aud\ui\weap_pickup.wav")  # peacedin
 DEATH_SND = pygame.mixer.Sound(r"gamedata\aud\ui\death.wav")  # peaceding from hl2
 WALK = [pygame.mixer.Sound(r"gamedata\aud\game\walk_0.wav"), pygame.mixer.Sound(r"gamedata\aud\game\walk_1.wav"),
         pygame.mixer.Sound(r"gamedata\aud\game\walk_2.wav")]  # peaceding from tarkov
+W1_SHOOT = pygame.mixer.Sound(r"gamedata\aud\game\weap\weap_1_atc.ogg")
 
 SCREENRES = pygame.display.Info()  # screen resolution required for some imgs to be properly set on canvas
 X_CENTER = SCREENRES.current_w // 2  # just a separate coord of screen center value to not repeat the code
@@ -1050,7 +1065,7 @@ class TestEnemy(Entity):
 
     def update(self, pcoord, scene, *args, **kwargs):
         super().update(pcoord, scene, *args, **kwargs)
-        if pygame.sprite.spritecollideany(self, scene.Pshots) or pygame.sprite.spritecollideany(self, scene.enemshots):
+        if pygame.sprite.spritecollideany(self, scene.pshots) or pygame.sprite.spritecollideany(self, scene.enemshots):
             self.death()
 
     def death(self):
@@ -1059,19 +1074,16 @@ class TestEnemy(Entity):
                                                          self.image.get_height() * REL_SCALE))
 
 
-class Shot(pygame.sprite.Sprite):
-    image = imgloader(r"game\effects\Shot.png")
-    image = pygame.transform.scale(image, (image.get_width() * 2.5, image.get_height() * 2.5))
-
-    def __init__(self, x, y, *group):
+class Raycast(pygame.sprite.Sprite):
+    def __init__(self, deg, pos, a_range=1, spread=0, *group):
         super().__init__(*group)
-        self.image = Shot.image
-        self.rect = Shot.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-    def die(self):
-        self.kill()
+        self.image = pygame.surface.Surface((2 * a_range * PSCALE, 2 * a_range * PSCALE), pygame.SRCALPHA, 32)
+        pygame.draw.line(self.image, '#FF0000', (self.image.get_width() / 2, self.image.get_height() / 2),
+                         (self.image.get_width() / 2, 0), 2)
+        self.image = pygame.transform.rotate(self.image, -(deg * 45 + randrange(-spread, spread)))
+        self.rect = self.image.get_rect()
+        self.rect.center = pos
+        self.mask = pygame.mask.from_surface(self.image)
 
 
 class CharSpritemap:
@@ -1159,6 +1171,11 @@ class Player:
         self.weap = weap_new
         WEAP_PICKUP.play()
         return weap_old
+
+    def attack_event(self, scene):
+        if self.weap == 1:
+            scene.pshots.add(list(map(lambda x: Raycast(self.deg, (X_CENTER, Y_CENTER), 64, 60), range(1))))
+            W1_SHOOT.play()
 
     def calc_orient(self, keys):
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -1449,7 +1466,7 @@ class GameScene(BaseScene):
         self.trigs, self.items, self.props, self.sclips = (pygame.sprite.Group(), pygame.sprite.Group(),
                                                            pygame.sprite.Group(), pygame.sprite.Group())
         self.enems = pygame.sprite.Group()
-        self.Pshots = pygame.sprite.Group()
+        self.pshots = pygame.sprite.Group()
         self.enemshots = pygame.sprite.Group()
         self.enemy = TestEnemy(self.player.coords, 128, 128, self.enems)
         self.tic = 0
@@ -1532,7 +1549,7 @@ class GameScene(BaseScene):
         self.items.draw(screen)
         self.props.draw(screen)
         self.enems.draw(screen)
-        self.Pshots.draw(screen)
+        self.pshots.draw(screen)
         self.enemshots.draw(screen)
         # rendering UIEs
         for _ in self.uihld.values():
@@ -1568,7 +1585,7 @@ class GameScene(BaseScene):
                 self.ui_validator(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self.ui_validator(event, True)
-                self.atc()
+                self.player.attack_event(self)
             elif event.type == pygame.KEYDOWN:
                 self.player.interaction_proc(event)
                 if event.key == pygame.K_ESCAPE:
@@ -1597,6 +1614,7 @@ class GameScene(BaseScene):
 
     def const_update(self, keys):
         if self.scene_mode == 0:
+            self.pshots.remove(self.pshots)
             self.player.proc_evt(keys)
             if self.player.status == 2 and not self.player.did_died:
                 if self.player.weap != 0:
@@ -1610,25 +1628,12 @@ class GameScene(BaseScene):
             self.items.update(self.player.coords, self)
             self.enems.update(self.player.coords, self)
             self.player.interact_request = False
-            if self.tic >= self.delay and self.bullet:
-                self.bullet.die()
-                self.bullet = False
-                self.tic = 0
-            elif self.bullet:
-                self.tic += self.timer.tick()
 
     def save_state(self):
         pass
 
     def load_state(self):
         pass
-
-    def atc(self):
-        if self.player.weap == 1:
-            self.bullet = Shot(X_CENTER - 150, Y_CENTER - 50, self.Pshots)
-            self.tic = 0
-            self.timer = pygame.time.Clock()
-            self.delay = 1000
 
 
 class SceneHolder:
