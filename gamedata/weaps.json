@@ -1,15 +1,14 @@
 [
 	{
 		"type": "melee",
-		"range": 28,
+		"a_range": 28,
 		"delay": 0.25
-	}
-],
-[
+	},
 	{
 		"type": "firearm",
-		"range": 64,
+		"a_range": 64,
 		"spread": 60,
+		"pellets": 12,
 		"delay": 0.5
 	}
 ]

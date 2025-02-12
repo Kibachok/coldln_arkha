@@ -1,0 +1,10 @@
+// наверно всё таки надо будет использовать CSV...
+
+{
+	"imgs":{
+		"sampleimg_0": ["filepath": "imgpath/img.png", "x": 50, "y": 100, "tw": 500, "th": 250, ],
+		"sampleimg_1": ["imgpath/bg.png"]
+	}
+	"uies":{
+	}
+}
