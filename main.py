@@ -1,30 +1,39 @@
-# DEMO WIP Build of game with main menu and some simple classes only
-import os
+# DEMO WIP Build of game with basic game structure
+import os  # for file work
 
-import pygame
+import pygame  # so-called piece of 'engine'
 import csv
 import sqlite3
 import json
 from random import randint, randrange, random
 
 
-def csvloader(namepath):
+# \/ \/ \/ External file loaders
+
+
+def csvloader(namepath):  # reads CSV as a dict and formats it in right way, used for locales and startup config
+    # right-way format: <first column of current row's value as a dict>: <other columns of this row>,
+    # for example: 'lvl_0_0': {'imseq': [0, 0, 0, 1, 1, 2]} from 'd_id': 'lvl_0_0', 'imseq': [0, 0, 0, 1, 1, 2]
     fullpathname = os.path.join(r'gamedata', namepath)
     if not os.path.isfile(fullpathname):
         print(f'Path -- {fullpathname} CSV not found')
         return None
     with open(fullpathname, mode='r', encoding='utf-8', newline='') as read:
         csvd = csv.DictReader(read, delimiter=';', quotechar='"')
-        tfcsvd = dict(map(lambda x: (list(x.values())[0], x), csvd))
+        tfcsvd = {list(_.values())[0]: dict(list(_.items())[1:]) for _ in csvd}
     return tfcsvd
 
 
-def imgloader(localpathname, colorkey=None):  # use this to load imgs | использовать для загрузки картинок
+def imgloader(localpathname, colorkey=None):  # convenient func to load image already from gamedata\img
+    # with validation of its existence and colorkey support
     fullpathname = os.path.join(r'gamedata\img', localpathname)
+    # validates if it's here
     if not os.path.isfile(fullpathname):
         print(f'Path -- {fullpathname} image not found)')
+        # otherwise returns doomkisser
         return pygame.image.load(r'doomkisser_V2_s.png')
     img = pygame.image.load(fullpathname)
+    # colorkey
     if colorkey is not None and not -2:
         img = img.convert()
         if colorkey == -1:
@@ -35,7 +44,7 @@ def imgloader(localpathname, colorkey=None):  # use this to load imgs | испо
     return img
 
 
-def lvlreader():
+def lvlreader():  # reads all the level jsons from levels folder, used only once as the game starts
     lvls = []
     for _ in os.listdir(r"gamedata\levels"):
         with open(r'gamedata\levels\ '[:-1] + _, mode='r', encoding="utf-8") as lc:
@@ -46,11 +55,10 @@ def lvlreader():
                       tmp[0]["ents"], sep='\n')
             except json.decoder.JSONDecodeError as jde:
                 print(f'Failed to read level config: {jde}')
-    print(lvls)
     return lvls
 
 
-def weapreader():
+def weapreader():  # reads weapons config
     weaps = []
     with open(r'gamedata\weaps.json') as wc:
         tmp = json.load(wc)
@@ -59,8 +67,13 @@ def weapreader():
                 weaps.append(_)
         except json.decoder.JSONDecodeError:
             print(f'Failed to read weap config')
-    print(weaps)
+    print(*weaps, sep='\n')
     return weaps
+
+
+# ^ ^ ^ External file loaders -- END
+# -------------------------------------------------------
+# \/ \/ \/ global used commands
 
 
 # UPPERCASE = global used variable
@@ -78,7 +91,7 @@ WLOCALE = csvloader('locals/weaps.csv')
 LOCALES = ['en', 'ru']
 CLOCALE = 'en'
 
-pygame.mixer.music.set_volume(0.8)
+pygame.mixer.music.set_volume(0.5)
 
 UI_CLICK = pygame.mixer.Sound(r"gamedata\aud\ui\button_click.wav")  # peaceding from tarkov
 UI_ESCAPE = pygame.mixer.Sound(r"gamedata\aud\ui\menu_escape.wav")  # peaceding from tarkov
@@ -86,7 +99,7 @@ WEAP_PICKUP = pygame.mixer.Sound(r"gamedata\aud\ui\weap_pickup.wav")  # peacedin
 DEATH_SND = pygame.mixer.Sound(r"gamedata\aud\ui\death.wav")  # peaceding from hl2
 WALK = [pygame.mixer.Sound(r"gamedata\aud\game\walk_0.wav"), pygame.mixer.Sound(r"gamedata\aud\game\walk_1.wav"),
         pygame.mixer.Sound(r"gamedata\aud\game\walk_2.wav")]  # peaceding from tarkov
-W1_SHOOT = pygame.mixer.Sound(r"gamedata\aud\game\weap\weap_1_atc.ogg")
+W1_SHOOT = pygame.mixer.Sound(r"gamedata\aud\game\weap\weap_1_atc.ogg")  # peaceding from tarkov
 
 SCREENRES = pygame.display.Info()  # screen resolution required for some imgs to be properly set on canvas
 X_CENTER = SCREENRES.current_w // 2  # just a separate coord of screen center value to not repeat the code
@@ -97,17 +110,16 @@ REL_SCALE = Y_SFAC * 4  # relational scale for scenes
 PSCALE = 24  # player collision scale value
 POFFSET_X = X_CENTER - Y_SFAC * PSCALE * 2
 POFFSET_Y = Y_CENTER - Y_SFAC * PSCALE * 2
-print(X_SFAC, Y_SFAC)
+print('Current scalefactors:', X_SFAC, Y_SFAC)
 screen = pygame.display.set_mode((SCREENRES.current_w, SCREENRES.current_h))
 
 FONT_0 = pygame.font.Font(None, 35)
 FONT_0.set_bold(True)
 FONT_1 = pygame.font.Font(None, 50)
 FONT_1.set_bold(True)
-FONT_2 = pygame.font.Font(None, int(X_SFAC * 20))
+FONT_2 = pygame.font.SysFont('comicsansms', int(X_SFAC * 15))
 FONT_2.set_bold(True)
 FONT_3 = pygame.font.Font(None, int(X_SFAC * 30))
-FONT_3.set_bold(True)
 
 UI_PALETTE = {'col_txt': '#202020', 'col_para': '#AAAACF', 'col_koyma': '#D0D0D8', 'col_sel': '#BBBBCC',
               'col_0': '#DFDFE8'}
@@ -131,10 +143,8 @@ except KeyError:
     C_LVL = 0
 
 
-def lvlloader(lvlid, sh):  # wip do not use | используется для загрузки уровней
-    global LVLS
-    clconf = LVLS[lvlid][0]
-    LVLS = lvlreader()
+def lvlloader(lvlid, sh, *lvls):  # creates a gamescene from level json
+    clconf = lvls[lvlid][0]
     # init part
     try:
         lvl = GameScene(clconf['start_coord'])
@@ -142,15 +152,22 @@ def lvlloader(lvlid, sh):  # wip do not use | используется для з
         print(f'Level {lvlid}: no start coords given - setting to 0, 0')
         lvl = GameScene([0, 0])
     lvl.set_holder(sh)
+    # reading music: dead silence if not specified or audio file doesn't exist
     try:
         lvl.set_music(clconf['music'])
     except KeyError:
         pass
+    except FileNotFoundError:
+        pass
+    # images reader
     try:
         for _ in clconf['imgs']:
             try:
+                _ = dict(_)
                 _['filepath'] = _['filepath'].replace("/", r"\ "[:-1])
+                _['filepath'] = _['filepath'].replace(r"\\", r"\ "[:-1])
                 imgtype = _.pop('type')
+                # selects a container type
                 if imgtype == 'playeroffset':
                     lvl.add_img(PlayerOffsetImage(**_))
                 elif imgtype == 'parallax':
@@ -161,23 +178,24 @@ def lvlloader(lvlid, sh):  # wip do not use | используется для з
                 print(f'Level {lvlid}: incorrect image format - rejecting it')
     except KeyError:
         print(f'Level {lvlid}: no images given')
+    # dials reader
     try:
         lvl.add_dsq(*clconf['dials'])
     except KeyError:
         print(f'Level {lvlid}: no dials given')
+    # entities reader
     try:
         for _ in clconf['ents']:
+            _ = dict(_)
+            print(_)
             lvl.add_ent(_)
     except KeyError:
         print(f'Level {lvlid}: no entities given')
     return lvl
 
 
-def lvlsaver():
-    pass
-
-
-def db_executor(exectype=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games
+def db_executor(exectype=0, *data):  # type - type of SQL request; 0 = new game, 1 = get games, 2 = delete save,
+    # 3 = change save's level, 4 = load save
     global C_SAVE, C_LVL
     cs = DB.cursor()
     if exectype == 0:
@@ -214,7 +232,8 @@ def db_executor(exectype=0, *data):  # type - type of SQL request; 0 = new game,
                                    (*data, )).fetchall()[0]
 
 
-def locgetter(loc, key):
+def locgetter(loc, key):  # locale getter, gets locale ID and returns the translated text according to current locale
+    # locale == localisation, language
     global CLOCALE
     try:
         return loc[key][CLOCALE]
@@ -225,7 +244,8 @@ def locgetter(loc, key):
     return key
 
 
-def dialgetter(key):
+def dialgetter(key):  # gets the dial images sequence from global dials var
+    # dial == dialogue
     global DIALS
     try:
         return list(map(lambda x: int(x), filter(lambda y: y.isdigit(), DIALS[key]['imseq'])))
@@ -247,8 +267,8 @@ class RenderableImage:  # base image container made to be configurable
         self.name = name
         self.overlay = overlay
         self.img = imgloader(filepath, colorkey)
-        if not (tw <= 0.0 or th <= 0.0):
-            print(self.img.get_width() * tw, self.img.get_height() * th, self.name)
+        if not (tw <= 0.0 or th <= 0.0):  # tw, th - transform width and transform height - multipliers
+            print(f'Image: {self.name}, Width: {self.img.get_width() * tw}, Height: {self.img.get_height() * th}')
             self.img = pygame.transform.scale(self.img, (self.img.get_width() * tw, self.img.get_height() * th))
         self.scenepos = (x, y)  # local scene position for img
         self.do_render = do_render
@@ -283,7 +303,8 @@ class ParallaxImage(RenderableImage):  # container for image with all parallax (
 
 class PlayerOffsetImage(RenderableImage):  # container for image with support of relative to player offset
     # базовый контейнер рендер-изображения с поддержкой относительного к игроку смещения
-    def __init__(self, name, filepath, x=0.0, y=0.0, tw=REL_SCALE, th=REL_SCALE, overlay=False, colorkey=None, do_render=True):
+    def __init__(self, name, filepath, x=0.0, y=0.0, tw=REL_SCALE, th=REL_SCALE, overlay=False, colorkey=None,
+                 do_render=True):
         super().__init__(name, filepath, x, y, tw, th, overlay, colorkey, do_render)
 
     def render(self, screen, *params):
@@ -1693,14 +1714,14 @@ class SceneHolder:
             pygame.mixer.music.fadeout(10000)
 
     def lvl_reload(self):
-        self.switch_scene(lvlloader(C_LVL, self))
+        self.switch_scene(lvlloader(C_LVL, self, *LVLS))
 
     def lvl_load_next(self):
         global C_LVL
         C_LVL += 1
         db_executor(3)
         try:
-            self.switch_scene(lvlloader(C_LVL, self))
+            self.switch_scene(lvlloader(C_LVL, self, *LVLS))
         except IndexError:
             self.swto_defscene()
 
@@ -1709,14 +1730,14 @@ class SceneHolder:
         C_LVL = lvlid
         db_executor(3)
         try:
-            self.switch_scene(lvlloader(C_LVL, self))
+            self.switch_scene(lvlloader(C_LVL, self, *LVLS))
         except IndexError:
             self.swto_defscene()
 
     def lvl_load_current(self):
         global C_LVL
         try:
-            self.switch_scene(lvlloader(C_LVL, self))
+            self.switch_scene(lvlloader(C_LVL, self, *LVLS))
         except IndexError:
             self.swto_defscene()
 
