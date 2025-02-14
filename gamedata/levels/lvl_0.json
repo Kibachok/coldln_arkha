@@ -23,7 +23,7 @@
 			"y": 106,
 			"w": 52,
 			"h": 19,
-			"func": "lvl_next",
+			"func": "kills",
 			"once": true
 		},
 	    {
