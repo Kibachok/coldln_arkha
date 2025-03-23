@@ -15,9 +15,6 @@ import cla_core.audio as aud
 import cla_core.s_graphics as graph
 
 
-pygame.init()
-
-
 FONT_0 = pygame.font.Font(None, 35)
 FONT_0.set_bold(True)
 FONT_1 = pygame.font.Font(None, 50)
@@ -31,19 +28,29 @@ class UIElem:  # UI Element base class/базовый класс элемент�
     def __init__(self, name, lloc, x=0, y=0, w=0, h=0, txt='', font=None):
         global FONT_0
         global UI_PALETTE
-        self.loc = lloc
-        self.palette = dict(UI_PALETTE)
         self.name = name
+        self.do_render = True
+
         self.w = w
         self.h = h
         self.x = x
         self.y = y
+
+        self.loc = lloc
+        self.palette = dict(UI_PALETTE)
         self.font = font
         self.txt = txt
-        self.do_render = True
+
+        self.base_surf = None
+        self.para_surf = None
+
+        self.redraw()
 
     def __str__(self):
         return self.name
+
+    def redraw(self):
+        pass
 
     def hide(self):
         self.do_render = False
@@ -65,37 +72,58 @@ class UIElem:  # UI Element base class/базовый класс элемент�
             print(f'({ke}) NC: No color of this name in the palette')
 
     def text_render(self, locale):
+        # checking for locale
         if self.loc:
-            try:
-                return self.font.render(loc.locgetter(self.loc, self.txt, locale), False, self.palette['col_txt'])
-            except TypeError:
-                return FONT_0.render(loc.locgetter(self.loc, self.txt, locale), False, self.palette['col_txt'])
-            except AttributeError:
-                return FONT_0.render(loc.locgetter(self.loc, self.txt, locale), False, self.palette['col_txt'])
+            lines = loc.locgetter(self.loc, self.txt, locale).split(r'\n')
         else:
-            try:
-                return self.font.render(self.txt, False, self.palette['col_txt'])
-            except TypeError:
-                return FONT_0.render(self.txt, False, self.palette['col_txt'])
-            except AttributeError:
-                return FONT_0.render(self.txt, False, self.palette['col_txt'])
+            lines = self.txt.split(r'\n')
+
+        # rendering the lines
+        try:
+            texts = [self.font.render(_, False, self.palette['col_txt']) for _ in lines]
+        except TypeError:  # if font is not set
+            texts = [FONT_0.render(_, False, self.palette['col_txt']) for _ in lines]
+        except AttributeError:  # if font is not set 2
+            texts = [FONT_0.render(_, False, self.palette['col_txt']) for _ in lines]
+
+        # merging rendered lines into one surface
+        text_surf = pygame.Surface((max(map(lambda x: x.get_width(), texts)), sum(map(lambda x: x.get_height(),
+                                                                                      texts))), pygame.SRCALPHA)
+        offset = 0
+        for _ in texts:
+            text_surf.blit(_, (0, offset))
+            offset += _.get_height()
+        return text_surf
 
 
 class UICanvas(UIElem):
     def __init__(self, name, x=0, y=0, w=0, h=0, txt='', font=None):
         super().__init__(name, None, x, y, w, h, txt, font)
 
-    def render(self, screen, locale, para=(0, 0)):
+    def redraw(self):  # redraw ui surfaces
+        surf, parasurf = pygame.Surface((self.w, self.h)), pygame.Surface((self.w, self.h))
+
+        # base surf draw
+        surf.fill(self.palette['col_0'])
+        pygame.draw.rect(surf, self.palette['col_koyma'], (0, 0, self.w, self.h), 5)
+
+        # parallax surf draw
+        parasurf.fill(self.palette['col_para'])
+
+        self.base_surf = surf
+        self.para_surf = parasurf
+
+    def render(self, screen, locale, para=(0, 0)):  # draw surfaces to a screen
         offset = sd.SCREENRES.current_w // 1000 * 5
-        pygame.draw.rect(screen, self.palette['col_para'],
-                         (self.x + offset - (para[0] * 0.8), self.y + offset - (para[1] * 0.8), self.w, self.h), 0)
-        pygame.draw.rect(screen, self.palette['col_0'], (self.x, self.y, self.w, self.h), 0)
-        pygame.draw.rect(screen, self.palette['col_koyma'], (self.x, self.y, self.w, self.h), 5)
+
+        screen.blit(self.para_surf, (self.x + offset - (para[0] * 0.8), self.y + offset - (para[1] * 0.8)))
+        screen.blit(self.base_surf, (self.x, self.y))
 
 
 class UIText(UIElem):
-    def __init__(self, name, lloc, x=0, y=0, w=0, h=0, txt='', font=None):
+    def __init__(self, name, lloc, x=0, y=0, w=0, h=0, txt='', font=None, interval=0):
         super().__init__(name, lloc, x, y, w, h, txt, font)
+        self.interval = interval  # space between two lines (/n separation), in px
 
     def render(self, screen, locale, *args):
         text = self.text_render(locale)

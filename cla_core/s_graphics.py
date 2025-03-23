@@ -179,42 +179,36 @@ class PlayerRotatableFramedSprite(BaseFramedSprite):
 
 
 class CharSpritemap:  # character sprites container logically sorted by player statuses
-    m0g, m1g, m2g = pygame.sprite.Group(), pygame.sprite.Group(), pygame.sprite.Group()
+    def __init__(self, charpath):
+        m0g = pygame.sprite.Group(PlayerRotatableSprite(r'game\char\ '[:-1] + charpath + r'\idle_0.png', sd.X_CENTER, sd.Y_CENTER))
+        m1g = pygame.sprite.Group(PlayerRotatableSprite(r'game\char\ '[:-1] + charpath + r'\run_0.png', sd.X_CENTER, sd.Y_CENTER))
+        m2g = pygame.sprite.Group(PlayerRotatableSprite(r'game\char\ '[:-1] + charpath + r'\dead_0.png', sd.X_CENTER, sd.Y_CENTER))
+        # m[0, 1, 2]g - static sprites groups: sprites that depend on player status only (not animated and not weapon:
+        # head, dead character)
 
-    # m[0, 1, 2]g - static sprites groups: sprites that depend on player status only (not animated and not weapon:
-    # head, dead character)
+        self.charpath = r'game\char\ '[:-1] + charpath + r'\ '[:-1]
+        self.sgs = [m0g, m1g, m2g]
+        self.weap_get('empty')
 
-    PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_0.png', sd.X_CENTER, sd.Y_CENTER, m0g)
-    PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_run_0.png', sd.X_CENTER, sd.Y_CENTER, m1g)
-    PlayerRotatableSprite(r'game\char\bkiss\cla_bkiss_sprite_dead_0.png', sd.X_CENTER, sd.Y_CENTER, m2g)
+    def weap_get(self, wid):
+        if wid in os.listdir(r'gamedata\img\ '[:-1] + self.charpath):
+            m0wg = pygame.sprite.Group(
+                PlayerRotatableSprite(self.charpath + wid + r'\idle_0.png', sd.X_CENTER, sd.Y_CENTER))
+            m1wg = pygame.sprite.Group(
+                PlayerRotatableFramedSprite(self.charpath + wid + r'\run_0.png', 2, 1, sd.X_CENTER, sd.Y_CENTER, 5))
+        else:
+            m0wg = pygame.sprite.Group(
+                PlayerRotatableSprite(self.charpath + r'empty\idle_0.png', sd.X_CENTER, sd.Y_CENTER))
+            m1wg = pygame.sprite.Group(
+                PlayerRotatableFramedSprite(self.charpath + r'empty\run_0.png', 2, 1, sd.X_CENTER, sd.Y_CENTER, 5))
+        self.wsgs = [m0wg, m1wg, None]
 
-    ldir = os.listdir(r'gamedata\img\game\char\bkiss')  # reads all the character images
-
-    m0wg, m1wg = [], []  # WeaponGroup lists: containers for spritegroups of each weapon type,
-    # num is player status respectively
-    for _ in list(filter(lambda x: 'sprite_0_w' in x, sorted(ldir))):
-        locgr = pygame.sprite.Group()
-        PlayerRotatableSprite(r'game\char\bkiss\ '[:-1] + _, sd.X_CENTER, sd.Y_CENTER, locgr)
-        m0wg.append(locgr)
-    for _ in list(filter(lambda x: 'sprite_run_0_w' in x, sorted(ldir))):
-        locgr = pygame.sprite.Group()
-        PlayerRotatableFramedSprite(r'game\char\bkiss\ '[:-1] + _, 2, 1, sd.X_CENTER, sd.Y_CENTER, 5, locgr)
-        m1wg.append(locgr)
-
-    def __init__(self):
-        self.sgs = [CharSpritemap.m0g, CharSpritemap.m1g, CharSpritemap.m2g]
-        self.wsgs = [CharSpritemap.m0wg, CharSpritemap.m1wg]
-
-    def render(self, screen, status, deg, weap):
+    def render(self, screen, status, deg):
         # 'weapon' sprites rendering
         if status != 2:
-            try:
-                self.wsgs[status][weap].update(deg)
-                self.wsgs[status][weap].draw(screen)
-            except IndexError:
-                self.wsgs[0][0].update(deg)
-                self.wsgs[0][0].draw(screen)
-        # 'static' sprites rendering
+            self.wsgs[status].update(deg)
+            self.wsgs[status].draw(screen)
+        #   'static' sprites rendering
         try:
             self.sgs[status].update(deg)
             self.sgs[status].draw(screen)

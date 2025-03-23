@@ -1,10 +1,12 @@
 [
 	{
+		"weapid": "empty",
 		"type": "melee",
 		"a_range": 28,
 		"delay": 0.25
 	},
 	{
+		"weapid": "sawedoff",
 		"type": "firearm",
 		"a_range": 64,
 		"spread": 60,

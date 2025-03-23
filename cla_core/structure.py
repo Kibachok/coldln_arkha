@@ -434,7 +434,7 @@ class GameScene(BaseScene):
 
     def const_update(self, keys):  # constantly validates and updates things
         if self.scene_mode == 0:
-            self.pshots.remove(self.pshots)
+            # self.pshots.remove(self.pshots)
             self.player.proc_evt(keys)
             # checks if player died and program hasn't parsed it yet
             if self.player.status == 2 and not self.player.did_died:

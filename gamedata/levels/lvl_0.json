@@ -39,13 +39,13 @@
 			"type": "DropWeap",
 			"x": 140,
 			"y": 280,
-			"wid": 1
+			"wid": "sawedoff"
 		},
 		{
 			"type": "DropWeap",
 			"x": 140,
 			"y": 250,
-			"wid": 1
+			"wid": "sawedoff"
 		},
 		{
 			"type": "Prop",

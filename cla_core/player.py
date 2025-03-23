@@ -7,6 +7,9 @@
 #
 import pygame
 
+from math import sin, cos, radians
+from random import randint
+
 import cla_core.screendata as sd
 import cla_core.s_graphics as graph
 import cla_core.audio as aud
@@ -27,15 +30,52 @@ class PlayerClip(pygame.sprite.Sprite):
         self.rect = pygame.Rect(POFFSET_X, POFFSET_Y, sd.REL_SCALE * PSCALE, sd.REL_SCALE * PSCALE)
 
 
+class Melee:
+    def __init__(self, wid, attrange, delay, asndname):
+        self.range, self.delay = attrange, delay
+        self.vmid, self.asnd = wid, asndname
+        self.timer, self.ctime = pygame.time.Clock(), 0
+
+    def attack(self):
+        pass
+
+
+class Firearm:
+    def __init__(self, wid, ammo, attrange, spread, projs, delay, rdelay, ssndname, rsndname):
+        self.ammo, self.range, self.spread, self.projs, self.delay, self.rdelay = (ammo, attrange, spread, projs,
+                                                                                   delay * 1000, rdelay * 1000)
+        self.curammo = ammo  # current AMMOunt
+        self.vmid, self.ssnd, self.rsnd = wid, ssndname, rsndname  # ViewModel ID and sounds to play when shot and rload
+        self.timer, self.ctime = pygame.time.Clock(), 0
+
+    def attack(self, deg, pos):
+        self.ctime += self.timer.tick()
+        if self.curammo > 0 and self.ctime >= self.delay:
+            self.ctime = 0
+            self.curammo -= 1
+            aud.aud_play(self.ssnd)
+            return [Raycast(deg, pos, self.range, self.spread) for _ in range(self.projs)]
+
+    def reload(self):
+        self.curammo = self.ammo
+
+
 class Raycast(pygame.sprite.Sprite):
     def __init__(self, deg, pos, a_range=1, spread=0, *group):
         super().__init__(*group)
-        self.image = pygame.surface.Surface((2 * a_range * PSCALE, 2 * a_range * PSCALE), pygame.SRCALPHA, 32)
-        pygame.draw.line(self.image, '#FF0000', (self.image.get_width() / 2, self.image.get_height() / 2),
-                         (0, 0), 2)
-        # self.image = pygame.transform.rotate(self.image, -(deg * 45 + randrange(-spread, spread)))
+        deg = ((deg * 45 + randint(-spread, spread)) + 360) % 360
+        print(deg)
+        print(sin(radians(deg)))
+        print(cos(radians(deg)))
+        surf_x = int(sin(radians(deg)) * a_range * PSCALE)
+        surf_y = -int(cos(radians(deg)) * a_range * PSCALE)
+        print(surf_x, surf_y)
+        self.image = pygame.surface.Surface((abs(surf_x) if surf_x != 0 else 2, abs(surf_y) if surf_y != 0 else 2),
+                                            pygame.SRCALPHA)
+        pygame.draw.line(self.image, '#FF0000', (0 if surf_x >= 0 else abs(surf_x), 0 if surf_y >= 0 else abs(surf_y)),
+                         (surf_x if surf_x >= 0 else 0, surf_y if surf_y >= 0 else 0), 2)
         self.rect = self.image.get_rect()
-        self.rect.center = pos
+        self.rect.center = pos[0] + surf_x // 2, pos[1] + surf_y // 2
         self.mask = pygame.mask.from_surface(self.image)
 
 
@@ -43,15 +83,15 @@ class Player:
     orients = {(0, -1): 0, (1, -1): 1, (1, 0): 2, (1, 1): 3, (0, 1): 4, (-1, 1): 5, (-1, 0): 6, (-1, -1): 7}
 
     def __init__(self, startpos):
-        self.char_spritemap = graph.CharSpritemap()
+        self.char_spritemap = graph.CharSpritemap('bkiss')
         # space positioning properties
         self.orient = (0, 0)
         self.deg = 0
         self.coords = startpos
         self.prev_coors = None
         self.vel = [0, 0]  # velocities / скорости (0=down,1=right)
-        self.acc = 720  # acceleration, in pix/sec
-        self.decc = 960  # deceleration, in pix/sec
+        self.acc = 960  # acceleration, in pix/sec
+        self.decc = 1440  # deceleration, in pix/sec
         self.sl = 240  # speed limit, in pix/sec
         # collision
         self.clip = PlayerClip()
@@ -84,12 +124,13 @@ class Player:
     def weap_exchange(self, weap_new):
         weap_old = self.weap
         self.weap = weap_new
+        self.char_spritemap.weap_get(weap_new)
         aud.aud_play(aud.WEAP_PICKUP)
         return weap_old
 
     def attack_event(self, scene):
-        if self.weap == 1:
-            scene.pshots.add(list(map(lambda x: Raycast(self.deg, (sd.X_CENTER, sd.Y_CENTER), 64, 60), range(1))))
+        if self.weap == 'sawedoff':
+            scene.pshots.add(list(map(lambda x: Raycast(self.deg, (sd.X_CENTER, sd.Y_CENTER), 16, 60), range(6))))
             aud.aud_play(aud.W1_SHOOT)
 
     def death_event(self):
@@ -202,4 +243,4 @@ class Player:
             self.coords = self.prev_coors[:]
 
     def render(self, screen):
-        self.char_spritemap.render(screen, self.status, self.deg, self.weap)
+        self.char_spritemap.render(screen, self.status, self.deg)

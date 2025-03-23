@@ -3,12 +3,7 @@
 #
 # all game's sounds and player function with validation of audio's existence
 #
-from pygame import mixer
-
 import loaders as load
-
-
-mixer.init()
 
 
 UI_CLICK = load.audloader(r"ui\button_click.wav")  # peaceding from tarkov

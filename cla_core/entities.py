@@ -54,11 +54,11 @@ class TriggerClip(Entity):
 
 
 class DropItem(Entity):
-    def __init__(self, pcoord, name, img, x=0, y=0, *icg):
+    def __init__(self, pcoord, name, x=0, y=0, *icg):
         super().__init__(pcoord, x, y, 32, 32, *icg)
         rel32 = sd.REL_SCALE * 32
         self.name = name
-        img = load.imgloader(img)
+        img = load.imgloader(r'game\items\ '[:-1] + name + '.png')
         self.image = pygame.transform.scale(img, (rel32, rel32))
 
     def update(self, pcoord, scene, *args, **kwargs):
@@ -70,38 +70,30 @@ class DropItem(Entity):
             scene.get_uie('UI_TXT_IPCK').set_txt('')
 
 
-class DropWeap(Entity):
-    def __init__(self, pcoord, x=0, y=0, wid=1, *icg):
-        super().__init__(pcoord, x, y, 32, 32, *icg)
-        rel32 = sd.REL_SCALE * 32
-        self.wid = wid
-        self.image = pygame.transform.scale(self.load_weap(), (rel32, rel32))
-
-    def load_weap(self):
-        if os.path.isfile(r'gamedata\img\game\items\w_' + str(self.wid) + '.png'):
-            return load.imgloader(r'game\items\w_' + str(self.wid) + '.png')
-        else:
-            return load.imgloader(r'game\items\w_1.png')
+class DropWeap(DropItem):
+    def __init__(self, pcoord, wid='sawedoff', x=0, y=0, *icg):
+        super().__init__(pcoord, wid, x, y, *icg)
 
     def update(self, pcoord, scene, *args, **kwargs):
         super().update(pcoord, scene, *args, **kwargs)
         if pygame.sprite.spritecollideany(self, player.PlayerClip.PCG):
             scene.get_uie('UI_TXT_IPCK').set_txt(
                 f'''{loc.locgetter(loc.BASELOCALE, "item_pckp", scene.holder.clocale)}{loc.locgetter(
-                    loc.WLOCALE, "w_" + str(self.wid), scene.holder.clocale)}{(
-                        " " + "(" + loc.locgetter(loc.WLOCALE, "w_" + str(scene.player.weap), scene.holder.clocale) 
+                    loc.WLOCALE, self.name, scene.holder.clocale)}{(
+                        " " + "(" + loc.locgetter(loc.WLOCALE, 'zaglushka', scene.holder.clocale) 
                         + loc.locgetter(loc.BASELOCALE, 
                                         'item_drop', scene.holder.clocale)) if scene.player.weap != 0 else ''}''')
             if scene.player.interact_request:
-                self.replicate(scene.player.weap_exchange(self.wid), scene)
+                self.replicate(scene.player.weap_exchange(self.name), scene)
+                scene.get_uie('UI_TXT_IPCK').set_txt('')
                 self.kill()
         else:
             scene.get_uie('UI_TXT_IPCK').set_txt('')
 
     def replicate(self, new_weap, scene):
         if new_weap != 0:
-            self.groups()[0].add(DropWeap(scene.player.coords, scene.player.coords[0] + (random() - 0.5) * 64,
-                                          scene.player.coords[1] + (random() - 0.5) * 64, new_weap))
+            self.groups()[0].add(DropWeap(scene.player.coords, new_weap, scene.player.coords[0] + (random() - 0.5) * 64,
+                                          scene.player.coords[1] + (random() - 0.5) * 64))
 
 
 class CollisionEntity(Entity):
@@ -225,16 +217,19 @@ class SceneCollision(CollisionEntity):
 class TestEnemy(Entity):
     def __init__(self, pcoord, x=0, y=0, *esg):
         super().__init__(pcoord, x, y, player.PSCALE, player.PSCALE, *esg)
-        self.image = load.imgloader(r"game\char\bkiss\cla_bkiss_sprite_0.png")
+        self.image = load.imgloader(r"game\char\bkiss\idle_0.png")
         self.image = pygame.transform.scale(self.image, (self.image.get_width() * sd.REL_SCALE,
                                                          self.image.get_height() * sd.REL_SCALE))
+        self.is_dead = False
 
     def update(self, pcoord, scene, *args, **kwargs):
         super().update(pcoord, scene, *args, **kwargs)
-        if pygame.sprite.spritecollideany(self, scene.pshots) or pygame.sprite.spritecollideany(self, scene.enemshots):
+        if (pygame.sprite.spritecollideany(self, scene.pshots) or pygame.sprite.spritecollideany(self, scene.enemshots)
+                and not self.is_dead):
             self.death()
 
     def death(self):
-        self.image = load.imgloader(r"game\char\bkiss\cla_bkiss_sprite_dead_0.png")
+        self.image = load.imgloader(r"game\char\bkiss\dead_0.png")
         self.image = pygame.transform.scale(self.image, (self.image.get_width() * sd.REL_SCALE,
                                                          self.image.get_height() * sd.REL_SCALE))
+        self.is_dead = True
