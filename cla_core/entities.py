@@ -12,18 +12,19 @@ import loaders as load
 import cla_core.screendata as sd
 import cla_core.locale as loc
 import cla_core.player as player
+import cla_core.mobent as mobent
 
 
 class Entity(pygame.sprite.Sprite):  # base entity for scene, init it with gamescene ONLY
     def __init__(self, pcoord, x=0, y=0, w=0, h=0, *sg):
         super().__init__(*sg)
         self.x, self.y = x, y
-        self.rect = pygame.Rect(x * sd.REL_SCALE + player.POFFSET_X - pcoord[0] * sd.REL_SCALE, y * sd.REL_SCALE
-                                + player.POFFSET_Y - pcoord[1] * sd.REL_SCALE, sd.REL_SCALE * w, sd.REL_SCALE * h)
+        self.rect = pygame.Rect(x * sd.REL_SCALE + mobent.POFFSET_X - pcoord[0] * sd.REL_SCALE, y * sd.REL_SCALE
+                                + mobent.POFFSET_Y - pcoord[1] * sd.REL_SCALE, sd.REL_SCALE * w, sd.REL_SCALE * h)
 
     def update(self, pcoord, scene, *args, **kwargs):  # basically an "entity mover" in this specific case
-        self.rect.update(self.x * sd.REL_SCALE + player.POFFSET_X - pcoord[0] * sd.REL_SCALE, self.y * sd.REL_SCALE
-                         + player.POFFSET_Y - pcoord[1] * sd.REL_SCALE, self.rect.width, self.rect.height)
+        self.rect.update(self.x * sd.REL_SCALE + mobent.POFFSET_X - pcoord[0] * sd.REL_SCALE, self.y * sd.REL_SCALE
+                         + mobent.POFFSET_Y - pcoord[1] * sd.REL_SCALE, self.rect.width, self.rect.height)
 
 
 class TriggerClip(Entity):
@@ -91,7 +92,7 @@ class DropWeap(DropItem):
             scene.get_uie('UI_TXT_IPCK').set_txt('')
 
     def replicate(self, new_weap, scene):
-        if new_weap != 0:
+        if new_weap.lower() != 'empty':
             self.groups()[0].add(DropWeap(scene.player.coords, new_weap, scene.player.coords[0] + (random() - 0.5) * 64,
                                           scene.player.coords[1] + (random() - 0.5) * 64))
 
@@ -107,36 +108,36 @@ class CollisionEntity(Entity):
     def static_collide(self, pcoord, scene):
         scene.player.revert()
         super().groups()[0].update(scene.player.coords, scene, True)
-        if (self.x + self.w / 2 - player.PSCALE < pcoord[0] < self.x + self.w and
-                (not (pcoord[1] + player.PSCALE - 1 < self.y) and not (pcoord[1] > self.y + self.h - 1))):
+        if (self.x + self.w / 2 - mobent.CHARSCALE < pcoord[0] < self.x + self.w and
+                (not (pcoord[1] + mobent.CHARSCALE - 1 < self.y) and not (pcoord[1] > self.y + self.h - 1))):
             scene.player.vel[0] = 0
-        elif self.x + self.w / 2 > pcoord[0] + player.PSCALE > self.x and (not (pcoord[1] + player.PSCALE - 1 < self.y)
+        elif self.x + self.w / 2 > pcoord[0] + mobent.CHARSCALE > self.x and (not (pcoord[1] + mobent.CHARSCALE - 1 < self.y)
                                                                            and not (pcoord[1] > self.y + self.h - 1)):
             scene.player.vel[0] = 0
-        elif self.y + self.h / 2 - player.PSCALE < pcoord[1] < self.y + self.h:
+        elif self.y + self.h / 2 - mobent.CHARSCALE < pcoord[1] < self.y + self.h:
             scene.player.vel[1] = 0
-        elif self.y + self.h / 2 > pcoord[1] + player.PSCALE > self.y:
+        elif self.y + self.h / 2 > pcoord[1] + mobent.CHARSCALE > self.y:
             scene.player.vel[1] = 0
 
     def dynamic_collide_player(self, pcoord, scene):
-        if (self.x + self.w // 2 - player.PSCALE < pcoord[0] < self.x + self.w and
-                (not (pcoord[1] + player.PSCALE - 1 < self.y) and not (pcoord[1] > self.y + self.h - 1))):
+        if (self.x + self.w // 2 - mobent.CHARSCALE < pcoord[0] < self.x + self.w and
+                (not (pcoord[1] + mobent.CHARSCALE - 1 < self.y) and not (pcoord[1] > self.y + self.h - 1))):
             self.direction = 0
             self.vel = scene.player.sl * self.drag
             if self.drag < 1:
                 scene.player.vel[0] *= self.drag
-        elif self.x + self.w // 2 > pcoord[0] + player.PSCALE > self.x and (not (pcoord[1] + player.PSCALE - 1 < self.y)
+        elif self.x + self.w // 2 > pcoord[0] + mobent.CHARSCALE > self.x and (not (pcoord[1] + mobent.CHARSCALE - 1 < self.y)
                                                                             and not (pcoord[1] > self.y + self.h - 1)):
             self.direction = 1
             self.vel = scene.player.sl * self.drag
             if self.drag < 1:
                 scene.player.vel[0] *= self.drag
-        elif self.y + self.h // 2 - player.PSCALE < pcoord[1] < self.y + self.h:
+        elif self.y + self.h // 2 - mobent.CHARSCALE < pcoord[1] < self.y + self.h:
             self.direction = 2
             self.vel = scene.player.sl * self.drag
             if self.drag < 1:
                 scene.player.vel[1] *= self.drag
-        elif self.y + self.h // 2 > pcoord[1] + player.PSCALE > self.y:
+        elif self.y + self.h // 2 > pcoord[1] + mobent.CHARSCALE > self.y:
             self.direction = 3
             self.vel = scene.player.sl * self.drag
             if self.drag < 1:
@@ -216,7 +217,7 @@ class SceneCollision(CollisionEntity):
 
 class TestEnemy(Entity):
     def __init__(self, pcoord, x=0, y=0, *esg):
-        super().__init__(pcoord, x, y, player.PSCALE, player.PSCALE, *esg)
+        super().__init__(pcoord, x, y, mobent.CHARSCALE, mobent.CHARSCALE, *esg)
         self.image = load.imgloader(r"game\char\bkiss\idle_0.png")
         self.image = pygame.transform.scale(self.image, (self.image.get_width() * sd.REL_SCALE,
                                                          self.image.get_height() * sd.REL_SCALE))

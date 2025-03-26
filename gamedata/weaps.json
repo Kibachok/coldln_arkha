@@ -1,16 +1,22 @@
 [
+{
+	"empty":
 	{
-		"weapid": "empty",
 		"type": "melee",
-		"a_range": 28,
+		"attrange": 28,
 		"delay": 0.25
 	},
+	"sawedoff":
 	{
-		"weapid": "sawedoff",
 		"type": "firearm",
-		"a_range": 64,
+		"ammo": 2,
+		"attrange": 64,
 		"spread": 60,
-		"pellets": 12,
-		"delay": 0.5
+		"projs": 12,
+		"delay": 0.5,
+		"rdelay": 3,
+		"ssndname": "BUCKSHOT_SHOOT",
+		"rsndname": "BUCKSHOT_RELOAD"
 	}
+}
 ]

@@ -20,6 +20,7 @@ import loaders as load
 import database as db
 import cla_core.player as player
 import cla_core.entities as ent
+from cla_core.mobent import Melee, Firearm
 
 
 LVLS = load.lvlsreader()
@@ -251,14 +252,17 @@ class GameScene(BaseScene):
     itempck = ui.UIText('UI_TXT_IPCK', None, sd.X_CENTER, 100)
     # itempck.recolor('col_txt', '#d8d8ff')
     bg = graph.ParallaxImage('BG', r'game\scene\BG_Sky.png', tw=sd.Y_SFAC * 1.25, th=sd.Y_SFAC * 1.25)
+    ammocount = ui.UIText('UI_TXT_AMMOCOUNT', None, sd.SCREENRES.current_w - 50 - sd.REL_SCALE * 16,
+                          sd.SCREENRES.current_h - 40)
+    ammocount.recolor('col_txt', 'red')
 
     def __init__(self, startpos):
         super().__init__()
         self.add_uie(GameScene.pausemenu, GameScene.deathmenu)
         self.get_uie('UIG_PAUSE').get_elem('UI_BTN_PMENU_R').set_func(self.unpause)
-        self.add_uie(GameScene.itempck)
+        self.add_uie(GameScene.itempck, GameScene.ammocount)
         self.add_img(GameScene.bg)
-        self.dial_sequences = {}  # 'dialog sequences'
+        self.dial_sequences = {}  # 'dialogue sequences'
         self.dial = None
         self.player = player.Player(startpos)
         self.trigs, self.items, self.props, self.sclips = (pygame.sprite.Group(), pygame.sprite.Group(),
@@ -279,9 +283,11 @@ class GameScene(BaseScene):
             self.get_uie('UIG_DEATH').get_elem('UI_BTN_PMENU_E').set_func(self.holder.swto_defscene)
             self.get_uie('UIG_DEATH').get_elem('UI_BTN_DMENU_R').set_func(self.holder.lvl_reload)
 
+    #
     # 'adders'
+    #
 
-    def add_dsq(self, *dsqs):
+    def add_dsq(self, *dsqs):  # remember, dsqs - dialogue sequences
         for _ in dsqs:
             self.dial_sequences[f'{_}'] = ui.DialSeq(_)
 
@@ -318,7 +324,9 @@ class GameScene(BaseScene):
             except KeyError:
                 pass
 
+    #
     # pause-unpause
+    #
 
     def pause(self):
         self.set_prior('UIG_PAUSE')
@@ -326,7 +334,9 @@ class GameScene(BaseScene):
     def unpause(self):
         self.unset_prior()
 
+    #
     # getters
+    #
 
     def get_dial_by_did(self, did):  # gets dialogue from scene's dials using its ID, used in trigger entity setter
         try:
@@ -345,7 +355,9 @@ class GameScene(BaseScene):
         self.scene_mode = 2
         self.dial = self.get_dsq(d_id).set(self)
 
+    #
     # operations (render, event parsing etc.)
+    #
 
     def render(self, screen):
         # rendering images
@@ -366,6 +378,12 @@ class GameScene(BaseScene):
         self.enemshots.draw(screen)
         # rendering player
         self.player.render(screen)
+        if isinstance(self.player.weap, Melee):
+            self.get_uie('UI_TXT_AMMOCOUNT').set_txt('-')
+        elif isinstance(self.player.weap, Firearm):
+            self.get_uie('UI_TXT_AMMOCOUNT').set_txt(f'{self.player.weap.curammo}/{self.player.weap.ammo}')
+        else:
+            self.get_uie('UI_TXT_AMMOCOUNT').set_txt('-')
         # rendering UIEs
         for _ in self.uihld.values():
             if _.do_render:
@@ -434,7 +452,6 @@ class GameScene(BaseScene):
 
     def const_update(self, keys):  # constantly validates and updates things
         if self.scene_mode == 0:
-            # self.pshots.remove(self.pshots)
             self.player.proc_evt(keys)
             # checks if player died and program hasn't parsed it yet
             if self.player.status == 2 and not self.player.did_died:
@@ -451,6 +468,7 @@ class GameScene(BaseScene):
             self.trigs.update(self.player.coords, self)
             self.items.update(self.player.coords, self)
             self.enems.update(self.player.coords, self)
+            self.pshots.remove(self.pshots)
             self.player.interact_request = False
 
     def save_state(self):  # unused
@@ -486,14 +504,19 @@ class SceneHolder:  # main class of the game
         else:
             self.no_event = False
 
-    def funccall(self, name, *args):
-        getattr(self.scene, name)(*args)
+    #
+    # raw data level data parsers
+    #
 
     def event_parser(self, event):  # processes events if they are
         self.scene.proc_evt(event)
 
     def const_parser(self, keys):  # processess events constantly (keys in this case)
         self.scene.const_update(keys)
+
+    #
+    # scenes interaction
+    #
 
     def switch_scene(self, scene_new):
         if self.scene:
@@ -506,25 +529,33 @@ class SceneHolder:  # main class of the game
         self.fade_timer = 0
         self.no_event = True
 
-    def set_defscene(self, ds):
+    def set_defscene(self, ds):  # set the default scene
         self.defscene = ds
         self.music_play()
 
-    def swto_defscene(self):
+    def swto_defscene(self):  # switch to default scene
         self.switch_scene(self.defscene)
 
-    def music_play(self):
-        if self.scene.music:
+    #
+    # music player
+    #
+
+    def music_play(self):  # play scene's music (loop)
+        if self.scene.music:  # checks if it is
             pygame.mixer.music.load(self.scene.music)
-            pygame.mixer.music.play(-1)
-        else:
+            pygame.mixer.music.play(-1)  # loop
+        else:  # fades (10 seconds) if it's not
             pygame.mixer.music.fadeout(10000)
 
-    def lvl_reload(self):
+    #
+    # lvl (game scene) loaders
+    #
+
+    def lvl_reload(self):  # reload current level to the initial state
         self.clvl = int(self.clvl)
         self.switch_scene(lvlloader(self.clvl, self, *LVLS))
 
-    def lvl_load_next(self):
+    def lvl_load_next(self):  # load next loaded level from levels list
         self.clvl = int(self.clvl)
         self.clvl += 1
         db.db_executor(self.csave, self.clvl, 3)
@@ -533,7 +564,7 @@ class SceneHolder:  # main class of the game
         except IndexError:
             self.swto_defscene()
 
-    def lvl_load(self, lvlid):
+    def lvl_load(self, lvlid):  # load level by specific identifier, probably gonna merge it with 'next' loader
         self.clvl = int(self.clvl)
         self.clvl = lvlid
         db.db_executor(self.csave, self.clvl, 3)
@@ -542,7 +573,7 @@ class SceneHolder:  # main class of the game
         except IndexError:
             self.swto_defscene()
 
-    def lvl_load_current(self):
+    def lvl_load_current(self):  # load level by 'clvl' identifier, used for mainmenu game load
         self.clvl = int(self.clvl)
         try:
             self.switch_scene(lvlloader(self.clvl, self, *LVLS))

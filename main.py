@@ -21,7 +21,6 @@ import pygame  # so-called piece of 'engine'
 pygame.mixer.init()
 
 LVLS = load.lvlsreader()
-WEAPS = load.weapreader()
 
 LOCALES = ['en', 'ru']
 CLOCALE = 'en'
@@ -69,7 +68,7 @@ def mmenu_imgs_init():
                                      / 2, sd.SCREENRES.current_h - clachr_size + 50, sd.Y_SFAC / 2, sd.Y_SFAC / 2, 1.5,
                                      colorkey=-2)
     clachr_gno = graph.ParallaxImage('CLA_CHR_GNO', r'mmenu\CLA_Chr__0003s_0000_gno.png', sd.X_CENTER - 512 - 256 - 128,
-                                     sd.SCREENRES.current_h - 512 - 256, 0.8, 0.8, 4, colorkey=-2)
+                                     sd.SCREENRES.current_h - 512 - 256, 0.8, 0.8, 4, colorkey=-2, do_render=False)
     ttle = graph.ParallaxImage('TITLE', r'mmenu\CLA_Txt_0.png', sd.X_CENTER - 1024 * sd.Y_SFAC, 0, sd.Y_SFAC / 2,
                                sd.Y_SFAC / 2, 2.5, colorkey=-2)
     print(C_LVL)

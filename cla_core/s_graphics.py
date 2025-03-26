@@ -14,7 +14,7 @@ from random import randint, randrange, random
 import cla_core.screendata as sd
 import loaders as load
 import cla_core.audio as aud
-import cla_core.player as player
+import cla_core.mobent as mobent
 
 
 FADE_IMG = load.imgloader(r"ui\fade.png", -2)  # global used fade image
@@ -71,8 +71,8 @@ class PlayerOffsetImage(RenderableImage):  # container for image with support of
         super().__init__(name, filepath, x, y, tw, th, overlay, colorkey, do_render)
 
     def render(self, screen, *params):
-        screen.blit(self.img, (self.scenepos[0] - params[0] * sd.REL_SCALE + player.POFFSET_X, self.scenepos[1]
-                               - params[1] * sd.REL_SCALE + player.POFFSET_Y))
+        screen.blit(self.img, (self.scenepos[0] - params[0] * sd.REL_SCALE + mobent.POFFSET_X, self.scenepos[1]
+                               - params[1] * sd.REL_SCALE + mobent.POFFSET_Y))
 
 
 def sflake_init():
@@ -188,6 +188,7 @@ class CharSpritemap:  # character sprites container logically sorted by player s
 
         self.charpath = r'game\char\ '[:-1] + charpath + r'\ '[:-1]
         self.sgs = [m0g, m1g, m2g]
+        self.wsgs = None
         self.weap_get('empty')
 
     def weap_get(self, wid):

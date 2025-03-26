@@ -3,21 +3,15 @@
 #
 # player-related classes and player (for the game scene) itself
 #
-# classes: PlayerClip (sprite), Raycast (sprite), Player
+# classes: PlayerClip (sprite), Player
 #
 import pygame
-
-from math import sin, cos, radians
-from random import randint
 
 import cla_core.screendata as sd
 import cla_core.s_graphics as graph
 import cla_core.audio as aud
-
-
-PSCALE = 24  # player collision scale value
-POFFSET_X = sd.X_CENTER - sd.Y_SFAC * PSCALE * 2
-POFFSET_Y = sd.Y_CENTER - sd.Y_SFAC * PSCALE * 2
+import cla_core.mobent as mobent
+import loaders as load
 
 
 class PlayerClip(pygame.sprite.Sprite):
@@ -25,58 +19,11 @@ class PlayerClip(pygame.sprite.Sprite):
 
     def __init__(self):
         super().__init__(PlayerClip.PCG)
-        self.image = pygame.Surface((sd.REL_SCALE * PSCALE, sd.REL_SCALE * PSCALE), pygame.SRCALPHA, 32)
-        pygame.draw.rect(self.image, pygame.Color('green'), (0, 0, sd.REL_SCALE * PSCALE, sd.REL_SCALE * PSCALE), 5)
-        self.rect = pygame.Rect(POFFSET_X, POFFSET_Y, sd.REL_SCALE * PSCALE, sd.REL_SCALE * PSCALE)
-
-
-class Melee:
-    def __init__(self, wid, attrange, delay, asndname):
-        self.range, self.delay = attrange, delay
-        self.vmid, self.asnd = wid, asndname
-        self.timer, self.ctime = pygame.time.Clock(), 0
-
-    def attack(self):
-        pass
-
-
-class Firearm:
-    def __init__(self, wid, ammo, attrange, spread, projs, delay, rdelay, ssndname, rsndname):
-        self.ammo, self.range, self.spread, self.projs, self.delay, self.rdelay = (ammo, attrange, spread, projs,
-                                                                                   delay * 1000, rdelay * 1000)
-        self.curammo = ammo  # current AMMOunt
-        self.vmid, self.ssnd, self.rsnd = wid, ssndname, rsndname  # ViewModel ID and sounds to play when shot and rload
-        self.timer, self.ctime = pygame.time.Clock(), 0
-
-    def attack(self, deg, pos):
-        self.ctime += self.timer.tick()
-        if self.curammo > 0 and self.ctime >= self.delay:
-            self.ctime = 0
-            self.curammo -= 1
-            aud.aud_play(self.ssnd)
-            return [Raycast(deg, pos, self.range, self.spread) for _ in range(self.projs)]
-
-    def reload(self):
-        self.curammo = self.ammo
-
-
-class Raycast(pygame.sprite.Sprite):
-    def __init__(self, deg, pos, a_range=1, spread=0, *group):
-        super().__init__(*group)
-        deg = ((deg * 45 + randint(-spread, spread)) + 360) % 360
-        print(deg)
-        print(sin(radians(deg)))
-        print(cos(radians(deg)))
-        surf_x = int(sin(radians(deg)) * a_range * PSCALE)
-        surf_y = -int(cos(radians(deg)) * a_range * PSCALE)
-        print(surf_x, surf_y)
-        self.image = pygame.surface.Surface((abs(surf_x) if surf_x != 0 else 2, abs(surf_y) if surf_y != 0 else 2),
-                                            pygame.SRCALPHA)
-        pygame.draw.line(self.image, '#FF0000', (0 if surf_x >= 0 else abs(surf_x), 0 if surf_y >= 0 else abs(surf_y)),
-                         (surf_x if surf_x >= 0 else 0, surf_y if surf_y >= 0 else 0), 2)
-        self.rect = self.image.get_rect()
-        self.rect.center = pos[0] + surf_x // 2, pos[1] + surf_y // 2
-        self.mask = pygame.mask.from_surface(self.image)
+        self.image = pygame.Surface((sd.REL_SCALE * mobent.CHARSCALE, sd.REL_SCALE * mobent.CHARSCALE),
+                                    pygame.SRCALPHA, 32)
+        pygame.draw.rect(self.image, pygame.Color('green'), (0, 0, sd.REL_SCALE * mobent.CHARSCALE, sd.REL_SCALE
+                                                             * mobent.CHARSCALE), 5)
+        self.rect = pygame.Rect(mobent.POFFSET_X, mobent.POFFSET_Y, sd.REL_SCALE * mobent.CHARSCALE, sd.REL_SCALE * mobent.CHARSCALE)
 
 
 class Player:
@@ -96,7 +43,8 @@ class Player:
         # collision
         self.clip = PlayerClip()
         # current data
-        self.weap = 0
+        self.weap = None
+        self.weap_request('empty')
         self.status = 0
         self.did_died = False
         self.interact_request = False
@@ -120,22 +68,54 @@ class Player:
             self.interact_request = False
         if event.key == pygame.K_e:
             self.interact_request = True
+        if event.key == pygame.K_r:
+            self.reload_event()
+
+    #
+    # weap interactions
+    #
 
     def weap_exchange(self, weap_new):
         weap_old = self.weap
-        self.weap = weap_new
+        self.weap_request(weap_new)
         self.char_spritemap.weap_get(weap_new)
         aud.aud_play(aud.WEAP_PICKUP)
-        return weap_old
+        return weap_old.vmid
+
+    def weap_request(self, wid):
+        try:
+            weap_local = dict(mobent.WEAPS[wid])
+            wtype = weap_local.pop('type').lower()
+            if wtype == 'melee':
+                self.weap = mobent.Melee(wid, **weap_local)
+            elif wtype == 'firearm':
+                self.weap = mobent.Firearm(wid, **weap_local)
+            else:
+                self.weap = mobent.Melee('empty', attrange=28, delay=0.25)
+        except KeyError:
+            self.weap = mobent.Melee('empty', attrange=28, delay=0.25)
 
     def attack_event(self, scene):
-        if self.weap == 'sawedoff':
-            scene.pshots.add(list(map(lambda x: Raycast(self.deg, (sd.X_CENTER, sd.Y_CENTER), 16, 60), range(6))))
-            aud.aud_play(aud.W1_SHOOT)
+        if self.weap:
+            projectiles = self.weap.attack(self.deg, self.coords, self.coords)
+            if projectiles:
+                scene.pshots.add(projectiles)
+
+    def reload_event(self):
+        if isinstance(self.weap, mobent.Firearm):
+            self.weap.reload()
+
+    #
+    # death event
+    #
 
     def death_event(self):
         self.status = 2
         aud.aud_play(aud.DEATH_SND)
+
+    #
+    # movement
+    #
 
     def calc_orient(self, keys):
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -242,5 +222,11 @@ class Player:
             print('-----')
             self.coords = self.prev_coors[:]
 
+    #
+    # render
+    #
+
     def render(self, screen):
         self.char_spritemap.render(screen, self.status, self.deg)
+        screen.blit(self.weap.weapicon, (sd.SCREENRES.current_w - 50 - sd.REL_SCALE * 32, sd.SCREENRES.current_h - 50
+                                         - sd.REL_SCALE * 32))

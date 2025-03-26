@@ -12,9 +12,30 @@ WEAP_PICKUP = load.audloader(r"ui\weap_pickup.wav")  # peaceding from tarkov
 DEATH_SND = load.audloader(r"ui\death.wav")  # peaceding from hl2
 WALK = [load.audloader(r"game\walk_0.wav"), load.audloader(r"gamedata\aud\game\walk_1.wav"),
         load.audloader(r"game\walk_2.wav")]  # peaceding from tarkov
-W1_SHOOT = load.audloader(r"game\weap\weap_1_atc.ogg")  # peaceding from tarkov
+BUCKSHOT_SHOOT = load.audloader(r"game\weap\weap_1_atc.ogg")  # peaceding from tarkov
+BUCKSHOT_RELOAD = load.audloader(r"game\weap\weap_1_rld.wav")  # peaceding from gayturned
+
+
+AUDIOS = {
+    'UI_CLICK': UI_CLICK,
+    'UI_ESCAPE': UI_ESCAPE,
+    'WEAP_PICKUP': WEAP_PICKUP,
+    'DEATH_SND': DEATH_SND,
+    'WALK': WALK,
+    'BUCKSHOT_SHOOT': BUCKSHOT_SHOOT,
+    'BUCKSHOT_RELOAD': BUCKSHOT_RELOAD
+}
 
 
 def aud_play(audio):
     if audio:
-        audio.play()
+        if isinstance(audio, str):
+            try:
+                AUDIOS[audio].play()
+            except KeyError:
+                pass
+        else:
+            try:
+                audio.play()
+            except AttributeError:
+                pass

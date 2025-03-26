@@ -53,14 +53,14 @@ def imgloader(localpathname, colorkey=None):  # convenient func to load image al
 
 def lvlsreader():  # reads all the level jsons from levels folder, used only once as the game starts
     lvls = []
-    for _ in os.listdir(r"gamedata\levels"):
-        with open(r'gamedata\levels\ '[:-1] + _, mode='r', encoding="utf-8") as lc:
+    for _ in os.listdir(r"gamedata\levels"):  # gets all the file names from the levels folder and returns a list
+        with open(r'gamedata\levels\ '[:-1] + _, mode='r', encoding="utf-8") as lc:  # reads the level jsons
             try:
-                tmp = json.load(lc)
+                tmp = json.load(lc)  # json conversion
                 lvls.append(tmp)
                 print(tmp[0]["start_coord"], tmp[0]["music"], tmp[0]["imgs"], tmp[0]["uies"], tmp[0]["dials"],
-                      tmp[0]["ents"], sep='\n')
-            except json.decoder.JSONDecodeError as jde:
+                      tmp[0]["ents"], sep='\n')  # debug
+            except json.decoder.JSONDecodeError as jde:  # if wrong format
                 print(f'Failed to read level config: {jde}')
     return lvls
 
